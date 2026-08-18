@@ -8,6 +8,7 @@ const overlay = document.getElementById('overlay');
 const startButton = document.getElementById('start');
 const crosshair = document.getElementById('crosshair');
 const hint = document.getElementById('hint');
+const status = document.getElementById('status');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -19,10 +20,10 @@ const camera = new THREE.PerspectiveCamera(
   70,
   window.innerWidth / window.innerHeight,
   0.1,
-  2000
+  3000
 );
 
-const { scene, heightAt } = buildWorld();
+const { scene, heightAt, train } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt);
 scene.add(player.object);
 
@@ -33,6 +34,7 @@ camera.rotation.y = 0.35;
 function enterGame() {
   overlay.classList.add('hidden');
   crosshair.classList.add('visible');
+  status.classList.add('visible');
 }
 
 startButton.addEventListener('click', () => player.lock());
@@ -61,13 +63,33 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player };
+  window.game = { scene, camera, renderer, player, train };
 }
 
 const clock = new THREE.Clock();
+let wasAboard = false;
 
 renderer.setAnimationLoop(() => {
   // Clamp so a backgrounded tab does not teleport the player on return.
-  player.update(Math.min(clock.getDelta(), 0.1));
+  const delta = Math.min(clock.getDelta(), 0.1);
+
+  const position = player.object.position;
+
+  // Test before the train moves, so a passenger is carried along with the
+  // floor they are standing on instead of being left a frame behind.
+  const aboard = train.contains(position.x, position.z);
+  const travelled = train.update(delta);
+  if (aboard) position.z += travelled;
+
+  player.update(delta);
+
+  if (aboard !== wasAboard) {
+    hint.textContent = aboard ? 'On board' : 'On the platform';
+    hint.classList.add('visible');
+    wasAboard = aboard;
+  }
+
+  status.textContent = train.status();
+
   renderer.render(scene, camera);
 });

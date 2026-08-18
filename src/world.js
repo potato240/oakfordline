@@ -1,13 +1,15 @@
 import * as THREE from 'three';
 import { createTrack } from './track.js';
 import { createStation } from './station.js';
-import { createTrain } from './train.js';
+import { Train } from './train.js';
 import { createScenery } from './scenery.js';
 import {
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
   PLATFORM_LENGTH,
   PLATFORM_CENTRE_X,
+  FLOOR_Y,
+  STATIONS,
 } from './layout.js';
 
 const SKY_TOP = 0x2d5f97;
@@ -40,14 +42,14 @@ function createSky() {
     `,
   });
 
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 16), material);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(1400, 32, 16), material);
   sky.name = 'sky';
   return sky;
 }
 
 function createGround() {
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(900, 900),
+    new THREE.PlaneGeometry(1600, 1600),
     new THREE.MeshStandardMaterial({ color: 0x5d6b4d, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
@@ -77,28 +79,36 @@ function createLights() {
   return lights;
 }
 
-// Standing height under the player. No real collision yet - this is just
-// enough to let you walk up onto the platform instead of through it.
 const halfWidth = PLATFORM_WIDTH / 2;
 const halfLength = PLATFORM_LENGTH / 2;
 
-function heightAt(x, z) {
-  const onPlatform =
-    Math.abs(x - PLATFORM_CENTRE_X) <= halfWidth && Math.abs(z) <= halfLength;
-  return onPlatform ? PLATFORM_HEIGHT : 0;
+function onAnyPlatform(x, z) {
+  if (Math.abs(x - PLATFORM_CENTRE_X) > halfWidth) return false;
+  return STATIONS.some((station) => Math.abs(z - station.z) <= halfLength);
 }
 
 export function buildWorld() {
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(SKY_HORIZON, 120, 480);
+  scene.fog = new THREE.Fog(SKY_HORIZON, 140, 620);
 
   scene.add(createSky());
   scene.add(createGround());
   scene.add(createLights());
   scene.add(createTrack());
-  scene.add(createStation());
-  scene.add(createTrain());
   scene.add(createScenery());
 
-  return { scene, heightAt };
+  for (const station of STATIONS) scene.add(createStation(station));
+
+  const train = new Train();
+  scene.add(train.group);
+
+  // Standing surface under the player. The train wins over the platform, so
+  // stepping through the doorway puts you on the saloon floor.
+  function heightAt(x, z) {
+    if (train.contains(x, z)) return FLOOR_Y;
+    if (onAnyPlatform(x, z)) return PLATFORM_HEIGHT;
+    return 0;
+  }
+
+  return { scene, heightAt, train };
 }

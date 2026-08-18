@@ -1,9 +1,9 @@
 // Shared world dimensions. Everything that has to line up - rails, train
-// bogies, platform edge, canopy - reads from here rather than re-deriving
-// numbers locally.
+// bogies, platform edge, door openings - reads from here rather than
+// re-deriving numbers locally.
 
 export const TRACK_GAUGE = 1.435; // standard gauge, metres between rail inners
-export const TRACK_LENGTH = 400;
+export const TRACK_LENGTH = 800;
 
 export const BALLAST_HEIGHT = 0.2;
 export const SLEEPER_HEIGHT = 0.16;
@@ -22,3 +22,31 @@ export const PLATFORM_EDGE_X = PLATFORM_CENTRE_X - PLATFORM_WIDTH / 2;
 
 export const CANOPY_HEIGHT = 3.6;
 export const CANOPY_LENGTH = 34;
+
+// ---- rolling stock ----
+
+export const CAR_LENGTH = 19.5;
+export const CAR_WIDTH = 2.8;
+export const CAR_HEIGHT = 2.5;
+export const CAR_GAP = 0.7;
+export const WALL_THICKNESS = 0.12;
+
+export const WHEEL_RADIUS = 0.45;
+export const AXLE_Y = RAIL_TOP_Y + WHEEL_RADIUS;
+
+// Interior floor level, and the ceiling above it.
+export const FLOOR_Y = AXLE_Y + 0.22;
+export const INTERIOR_HEIGHT = 2.25;
+
+// Doorways sit on the platform side (+X). Each is two leaves that part.
+export const DOOR_CENTRES = [-6, 6];
+export const DOOR_HALF_WIDTH = 0.65;
+export const DOOR_HEIGHT = 1.95;
+
+// ---- the line ----
+
+// The route runs along Z. The train shuttles between these two stops.
+export const STATIONS = [
+  { name: 'Oakford', z: 0 },
+  { name: 'Bramley Halt', z: -280 },
+];

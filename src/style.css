@@ -103,3 +103,26 @@ body {
 #hint.visible {
   opacity: 1;
 }
+
+#status {
+  position: fixed;
+  top: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(92vw, 52rem);
+  padding: 0.55rem 1.2rem;
+  border-radius: 999px;
+  background: rgba(11, 14, 19, 0.72);
+  color: #f2f6fb;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 20;
+}
+
+#status.visible {
+  opacity: 1;
+}

@@ -16,16 +16,20 @@ Early scaffold. What exists today:
   brick station house.
 - A running line beside it: trapezoidal ballast, instanced sleepers, and rails
   at standard gauge.
-- A stationary two-car train at the platform — red and cream, with bogies,
-  wheels, doors, glazing and a driving cab.
+- A working two-car train, red and cream, with a full interior — floor,
+  ceiling with a lit strip, lined walls, seating bays, grab poles — that you
+  can walk into and ride.
+- Sliding doors on the platform side that part and close on a timer.
+- A line: the train shuttles between **Oakford** and **Bramley Halt**, 280m
+  apart, accelerating to 18 m/s and braking to a stand at each platform.
 - Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
-  run. The player stands on the platform deck via a simple height lookup.
+  run. The player stands on the platform deck, or on the saloon floor.
 - A drag-to-look fallback for browsers that reject pointer lock (see below).
 
-Not built yet: the train does not move, there are no timetables and no
-boarding, and there is no real collision — you can still walk through the
-train and the canopy columns.
+Not built yet: no timetable or schedule beyond the shuttle loop, no reason to
+catch a particular train, and no real collision — you can still walk through
+the train's walls, the doors when shut, and the canopy columns.
 
 ## Stack
 
@@ -79,6 +83,33 @@ npm run build
   standing surface under the player — currently just platform-or-ground, with
   no gravity. Real collision is a deliberate future step, not an oversight to
   patch ad hoc.
+
+## The train
+
+`Train` (in `src/train.js`) owns both the geometry and the running. Its
+`update(delta)` drives a four-state loop and **returns how far the train moved
+this frame**:
+
+```
+dwell (doors open, 14s) -> closing -> running -> opening -> dwell
+```
+
+`running` is a braking-distance model, not a scripted animation: it accelerates
+towards `MAX_SPEED` until the remaining distance drops below `v^2 / 2a`, then
+brakes. Change the stops in `STATIONS` and it just works out the run.
+
+**Riding.** The animation loop in `main.js` tests `train.contains(x, z)`
+*before* calling `update`, then adds the returned distance to the player's `z`.
+Testing first matters — order it the other way and a passenger is left a frame
+behind the floor they are standing on, which reads as sliding down the carriage.
+
+`train.contains()` deliberately extends to `x < 1.6` (the platform edge) rather
+than stopping at the inner wall, so stepping across the platform gap never
+drops the player to ground level mid-stride.
+
+Doors are two leaves per opening, positioned from `doorOpen` (0 shut, 1 open)
+in `applyDoors()`. They are visual only — nothing blocks a player walking
+through a shut door yet.
 
 ## Pointer lock
 

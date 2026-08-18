@@ -174,13 +174,13 @@ function createLamp(z) {
   return lamp;
 }
 
-function createNameSign(z) {
+function createNameSign(z, name) {
   const sign = new THREE.Group();
 
   const board = new THREE.Mesh(
     new THREE.BoxGeometry(3.4, 0.85, 0.08),
     new THREE.MeshStandardMaterial({
-      map: createSignTexture('OAKFORD'),
+      map: createSignTexture(name),
       roughness: 0.6,
     })
   );
@@ -254,17 +254,18 @@ function createStationHouse() {
   return group;
 }
 
-export function createStation() {
+export function createStation({ name, z }) {
   const station = new THREE.Group();
-  station.name = 'station';
+  station.name = `station:${name}`;
 
   station.add(createPlatformDeck());
   station.add(createCanopy());
   station.add(createStationHouse());
 
-  for (const z of [-9, 1, 11]) station.add(createBench(z));
-  for (const z of [-14, -2, 10, 22]) station.add(createLamp(z));
-  for (const z of [-6, 8]) station.add(createNameSign(z));
+  for (const benchZ of [-9, 1, 11]) station.add(createBench(benchZ));
+  for (const lampZ of [-14, -2, 10, 22]) station.add(createLamp(lampZ));
+  for (const signZ of [-6, 8]) station.add(createNameSign(signZ, name.toUpperCase()));
 
+  station.position.z = z;
   return station;
 }
