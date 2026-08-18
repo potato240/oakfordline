@@ -18,7 +18,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget -qO- http://localhost/ >/dev/null || exit 1
+# No Docker HEALTHCHECK here on purpose. Coolify runs its own check, and a
+# container-level check that fails will stop the deploy from going live.
 
 CMD ["nginx", "-g", "daemon off;"]
