@@ -1,0 +1,88 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  background: #0b0e13;
+}
+
+#scene {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: rgba(11, 14, 19, 0.82);
+  backdrop-filter: blur(6px);
+  color: #e8edf4;
+  text-align: center;
+  z-index: 10;
+}
+
+#overlay.hidden {
+  display: none;
+}
+
+#overlay h1 {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+#overlay p {
+  opacity: 0.7;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+}
+
+#start {
+  margin-top: 0.5rem;
+  padding: 0.7rem 1.6rem;
+  font: inherit;
+  font-size: 1rem;
+  color: #0b0e13;
+  background: #e8edf4;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+#start:hover {
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+#crosshair {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#crosshair.visible {
+  opacity: 1;
+}

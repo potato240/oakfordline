@@ -2,7 +2,16 @@
   "name": "oakfordline",
   "private": true,
   "version": "0.0.1",
+  "type": "module",
   "scripts": {
-    "build": "mkdir -p dist && echo '<h1>Oak Ford Line — pipeline test OK</h1>' > dist/index.html"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
   }
 }
