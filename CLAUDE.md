@@ -15,6 +15,10 @@ Early scaffold. What exists today:
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
   run. Pointer lock is entered by clicking "Click to play".
 - A grey box standing in for a station platform.
+- A drag-to-look fallback for browsers that reject pointer lock with
+  `WrongDocumentError` (the in-app preview pane does this). Real browsers use
+  pointer lock normally.
+- `window.game` is exposed in dev builds for console poking.
 
 Everything beyond that — trains, timetables, stations, boarding — is not built
 yet.

@@ -17,6 +17,11 @@ export class Player {
     this.direction = new THREE.Vector3();
     this.keys = new Set();
 
+    // Set when pointer lock is unavailable (some embedded browsers refuse it)
+    // and we fall back to click-and-drag looking.
+    this.dragLook = false;
+    this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
+
     this._onKeyDown = (event) => {
       this.keys.add(event.code);
       // Stop the page scrolling behind the canvas while playing.
@@ -42,13 +47,56 @@ export class Player {
     this.controls.lock();
   }
 
+  // True when the player is controlling the camera by either method.
+  get isActive() {
+    return this.controls.isLocked || this.dragLook;
+  }
+
+  // Fallback for environments that reject pointer lock: hold the left mouse
+  // button and drag to look around.
+  enableDragLook(domElement) {
+    if (this.dragLook) return;
+    this.dragLook = true;
+
+    let dragging = false;
+
+    domElement.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      domElement.setPointerCapture(event.pointerId);
+    });
+
+    const stop = (event) => {
+      dragging = false;
+      if (domElement.hasPointerCapture(event.pointerId)) {
+        domElement.releasePointerCapture(event.pointerId);
+      }
+    };
+    domElement.addEventListener('pointerup', stop);
+    domElement.addEventListener('pointercancel', stop);
+
+    domElement.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      const camera = this.controls.object;
+      this._euler.setFromQuaternion(camera.quaternion);
+      this._euler.y -= event.movementX * 0.002;
+      this._euler.x -= event.movementY * 0.002;
+      // Stop the camera from rolling over at the poles.
+      this._euler.x = THREE.MathUtils.clamp(
+        this._euler.x,
+        -Math.PI / 2,
+        Math.PI / 2
+      );
+      camera.quaternion.setFromEuler(this._euler);
+    });
+  }
+
   update(delta) {
     // Exponential damping, framerate independent.
     const damping = Math.exp(-DAMPING * delta) - 1;
     this.velocity.x += this.velocity.x * damping;
     this.velocity.z += this.velocity.z * damping;
 
-    if (this.controls.isLocked) {
+    if (this.isActive) {
       const forward =
         Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) -
         Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));

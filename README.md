@@ -23,6 +23,9 @@ Then open the printed local URL and click **Click to play**.
 | `Shift`     | Run        |
 | `Esc`       | Release the cursor |
 
+If the browser refuses pointer lock (some embedded/preview browsers do), the
+game falls back automatically: hold the left mouse button and drag to look.
+
 ## Building
 
 ```bash

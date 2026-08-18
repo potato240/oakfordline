@@ -25,7 +25,20 @@ const scene = buildWorld();
 const player = new Player(camera, renderer.domElement);
 scene.add(player.object);
 
+const hint = document.getElementById('hint');
+
 startButton.addEventListener('click', () => player.lock());
+
+// Some embedded browsers refuse pointer lock outright (WrongDocumentError).
+// Rather than leaving the button looking broken, drop into drag-to-look.
+document.addEventListener('pointerlockerror', () => {
+  player.enableDragLook(renderer.domElement);
+  overlay.classList.add('hidden');
+  crosshair.classList.add('visible');
+  hint.textContent =
+    'Pointer lock unavailable here - hold the left mouse button and drag to look. WASD to walk.';
+  hint.classList.add('visible');
+});
 player.controls.addEventListener('lock', () => {
   overlay.classList.add('hidden');
   crosshair.classList.add('visible');
@@ -40,6 +53,11 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// Handy for poking at the scene from the devtools console during development.
+if (import.meta.env.DEV) {
+  window.game = { scene, camera, renderer, player };
+}
 
 const clock = new THREE.Clock();
 
