@@ -7,6 +7,7 @@ const RUN_SPEED = 8.0;
 const ACCELERATION = 12.0;
 const DAMPING = 10.0;
 const BOUNDS = 190;
+const LOOK_SENSITIVITY = 0.002;
 
 export class Player {
   constructor(camera, domElement) {
@@ -17,43 +18,29 @@ export class Player {
     this.direction = new THREE.Vector3();
     this.keys = new Set();
 
-    // Set when pointer lock is unavailable (some embedded browsers refuse it)
-    // and we fall back to click-and-drag looking.
+    // Enabled when the browser refuses pointer lock; see enableDragLook.
     this.dragLook = false;
-    this._euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-    this._onKeyDown = (event) => {
-      this.keys.add(event.code);
-      // Stop the page scrolling behind the canvas while playing.
-      if (event.code === 'Space') event.preventDefault();
-    };
-    this._onKeyUp = (event) => this.keys.delete(event.code);
-    this._onBlur = () => this.keys.clear();
-
-    document.addEventListener('keydown', this._onKeyDown);
-    document.addEventListener('keyup', this._onKeyUp);
-    window.addEventListener('blur', this._onBlur);
+    document.addEventListener('keydown', (event) => this.keys.add(event.code));
+    document.addEventListener('keyup', (event) => this.keys.delete(event.code));
+    window.addEventListener('blur', () => this.keys.clear());
   }
 
   get object() {
     return this.controls.object;
   }
 
-  get isLocked() {
-    return this.controls.isLocked;
+  // True when the player is steering the camera by either input method.
+  get isActive() {
+    return this.controls.isLocked || this.dragLook;
   }
 
   lock() {
     this.controls.lock();
   }
 
-  // True when the player is controlling the camera by either method.
-  get isActive() {
-    return this.controls.isLocked || this.dragLook;
-  }
-
-  // Fallback for environments that reject pointer lock: hold the left mouse
-  // button and drag to look around.
+  // Fallback for browsers that reject pointer lock: hold left button and drag.
   enableDragLook(domElement) {
     if (this.dragLook) return;
     this.dragLook = true;
@@ -65,33 +52,27 @@ export class Player {
       domElement.setPointerCapture(event.pointerId);
     });
 
-    const stop = (event) => {
+    const stop = () => {
       dragging = false;
-      if (domElement.hasPointerCapture(event.pointerId)) {
-        domElement.releasePointerCapture(event.pointerId);
-      }
     };
     domElement.addEventListener('pointerup', stop);
     domElement.addEventListener('pointercancel', stop);
 
     domElement.addEventListener('pointermove', (event) => {
       if (!dragging) return;
+
       const camera = this.controls.object;
-      this._euler.setFromQuaternion(camera.quaternion);
-      this._euler.y -= event.movementX * 0.002;
-      this._euler.x -= event.movementY * 0.002;
-      // Stop the camera from rolling over at the poles.
-      this._euler.x = THREE.MathUtils.clamp(
-        this._euler.x,
-        -Math.PI / 2,
-        Math.PI / 2
-      );
-      camera.quaternion.setFromEuler(this._euler);
+      this.euler.setFromQuaternion(camera.quaternion);
+      this.euler.y -= event.movementX * LOOK_SENSITIVITY;
+      this.euler.x -= event.movementY * LOOK_SENSITIVITY;
+      // Clamp pitch so the camera never rolls over at the poles.
+      this.euler.x = THREE.MathUtils.clamp(this.euler.x, -Math.PI / 2, Math.PI / 2);
+      camera.quaternion.setFromEuler(this.euler);
     });
   }
 
   update(delta) {
-    // Exponential damping, framerate independent.
+    // Exponential damping, independent of framerate.
     const damping = Math.exp(-DAMPING * delta) - 1;
     this.velocity.x += this.velocity.x * damping;
     this.velocity.z += this.velocity.z * damping;
@@ -105,31 +86,25 @@ export class Player {
         Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
 
       this.direction.set(strafe, 0, forward);
+
       if (this.direction.lengthSq() > 0) {
         this.direction.normalize();
 
         const running = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight');
         const speed = running ? RUN_SPEED : WALK_SPEED;
 
-        this.velocity.z += this.direction.z * ACCELERATION * speed * delta;
         this.velocity.x += this.direction.x * ACCELERATION * speed * delta;
+        this.velocity.z += this.direction.z * ACCELERATION * speed * delta;
       }
     }
 
     this.controls.moveRight(this.velocity.x * delta);
     this.controls.moveForward(this.velocity.z * delta);
 
-    // Keep the player on the ground plane and inside the world.
+    // Pin to the ground plane and keep the player inside the world.
     const position = this.controls.object.position;
     position.y = EYE_HEIGHT;
     position.x = THREE.MathUtils.clamp(position.x, -BOUNDS, BOUNDS);
     position.z = THREE.MathUtils.clamp(position.z, -BOUNDS, BOUNDS);
-  }
-
-  dispose() {
-    document.removeEventListener('keydown', this._onKeyDown);
-    document.removeEventListener('keyup', this._onKeyUp);
-    window.removeEventListener('blur', this._onBlur);
-    this.controls.dispose();
   }
 }

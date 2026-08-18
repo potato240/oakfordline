@@ -1,24 +1,25 @@
-# Build the Vite bundle.
+# ---- build ----
 FROM node:22-alpine AS build
 
 WORKDIR /app
 
-# Copy manifests first so this layer caches until dependencies actually change.
 COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
 RUN npm run build
 
-# Serve the built output only. Nothing else from the repo ships.
+# ---- serve ----
 FROM nginx:1.27-alpine AS serve
+
+# Coolify's default health check shells into the container and runs curl,
+# which the nginx alpine image does not ship. Without this the container is
+# permanently "unhealthy" and the deploy never goes live.
+RUN apk add --no-cache curl
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
-
-# No Docker HEALTHCHECK here on purpose. Coolify runs its own check, and a
-# container-level check that fails will stop the deploy from going live.
 
 CMD ["nginx", "-g", "daemon off;"]

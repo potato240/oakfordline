@@ -29,7 +29,6 @@ body {
   justify-content: center;
   gap: 1rem;
   background: rgba(11, 14, 19, 0.82);
-  backdrop-filter: blur(6px);
   color: #e8edf4;
   text-align: center;
   z-index: 10;
@@ -41,31 +40,27 @@ body {
 
 #overlay h1 {
   font-size: clamp(2rem, 6vw, 3.5rem);
-  letter-spacing: 0.06em;
   font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 #overlay p {
-  opacity: 0.7;
   font-size: 0.95rem;
-  letter-spacing: 0.03em;
+  opacity: 0.7;
 }
 
 #start {
   margin-top: 0.5rem;
   padding: 0.7rem 1.6rem;
   font: inherit;
-  font-size: 1rem;
   color: #0b0e13;
   background: #e8edf4;
   border: 0;
   border-radius: 999px;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
 }
 
 #start:hover {
-  transform: translateY(-1px);
   background: #fff;
 }
 
@@ -98,7 +93,6 @@ body {
   background: rgba(11, 14, 19, 0.7);
   color: #e8edf4;
   font-size: 0.85rem;
-  letter-spacing: 0.02em;
   text-align: center;
   pointer-events: none;
   opacity: 0;
