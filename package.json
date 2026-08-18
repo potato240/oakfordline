@@ -1,0 +1,8 @@
+{
+  "name": "oakfordline",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build": "mkdir -p dist && echo '<h1>Oak Ford Line — pipeline test OK</h1>' > dist/index.html"
+  }
+}
