@@ -22,9 +22,13 @@ const camera = new THREE.PerspectiveCamera(
   2000
 );
 
-const scene = buildWorld();
-const player = new Player(camera, renderer.domElement);
+const { scene, heightAt } = buildWorld();
+const player = new Player(camera, renderer.domElement, heightAt);
 scene.add(player.object);
+
+// Look slightly across the track so the train is in shot on load. The camera
+// already faces -Z by default, which is down the platform towards the train.
+camera.rotation.y = 0.35;
 
 function enterGame() {
   overlay.classList.add('hidden');

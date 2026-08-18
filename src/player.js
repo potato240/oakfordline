@@ -8,11 +8,17 @@ const ACCELERATION = 12.0;
 const DAMPING = 10.0;
 const BOUNDS = 190;
 const LOOK_SENSITIVITY = 0.002;
+// Spawn standing on the platform deck.
+const PLATFORM_EYE = 1.0 + EYE_HEIGHT;
 
 export class Player {
-  constructor(camera, domElement) {
+  constructor(camera, domElement, heightAt = () => 0) {
+    // Returns the standing surface height at a world position, so the player
+    // walks up onto the platform rather than through it.
+    this.heightAt = heightAt;
+
     this.controls = new PointerLockControls(camera, domElement);
-    this.controls.object.position.set(12, EYE_HEIGHT, 20);
+    this.controls.object.position.set(5.6, PLATFORM_EYE, 22);
 
     this.velocity = new THREE.Vector3();
     this.direction = new THREE.Vector3();
@@ -101,9 +107,9 @@ export class Player {
     this.controls.moveRight(this.velocity.x * delta);
     this.controls.moveForward(this.velocity.z * delta);
 
-    // Pin to the ground plane and keep the player inside the world.
+    // Stand on whatever surface is underfoot, and keep inside the world.
     const position = this.controls.object.position;
-    position.y = EYE_HEIGHT;
+    position.y = this.heightAt(position.x, position.z) + EYE_HEIGHT;
     position.x = THREE.MathUtils.clamp(position.x, -BOUNDS, BOUNDS);
     position.z = THREE.MathUtils.clamp(position.z, -BOUNDS, BOUNDS);
   }

@@ -11,14 +11,21 @@ The name is always written **Oakford** as one word. Never "Oak Ford".
 
 Early scaffold. What exists today:
 
-- A ground plane and a gradient sky.
+- Oakford station: platform deck with coping stones, tactile strip and yellow
+  safety line, a canopy on columns, benches, lamps, name boards and a small
+  brick station house.
+- A running line beside it: trapezoidal ballast, instanced sleepers, and rails
+  at standard gauge.
+- A stationary two-car train at the platform — red and cream, with bogies,
+  wheels, doors, glazing and a driving cab.
+- Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
-  run. Pointer lock is entered by clicking "Click to play".
-- A grey box standing in for a station platform.
+  run. The player stands on the platform deck via a simple height lookup.
 - A drag-to-look fallback for browsers that reject pointer lock (see below).
 
-Everything beyond that — trains, timetables, stations, boarding — is not built
-yet.
+Not built yet: the train does not move, there are no timetables and no
+boarding, and there is no real collision — you can still walk through the
+train and the canopy columns.
 
 ## Stack
 
@@ -33,7 +40,12 @@ yet.
 | ---------------- | ------------------------------------------------------ |
 | `index.html`     | Vite entry point; canvas, start overlay, crosshair.    |
 | `src/main.js`    | Renderer, camera, pointer-lock wiring, animation loop. |
-| `src/world.js`   | Scene construction — sky, ground, lights, platform.    |
+| `src/world.js`   | Scene assembly — sky, ground, lights, height lookup.   |
+| `src/layout.js`  | Shared dimensions everything aligns to. Edit here.     |
+| `src/track.js`   | Ballast, sleepers, rails.                              |
+| `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
+| `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
+| `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/player.js`  | First-person controller: input, acceleration, damping. |
 | `src/style.css`  | Overlay and canvas styling.                            |
 | `vite.config.js` | Dev server on `0.0.0.0:5173`, build to `dist/`.        |
@@ -50,16 +62,23 @@ npm run build
 
 ## Conventions
 
-- Keep world geometry in `src/world.js` behind small `create*()` factory
-  functions returning a mesh or group, added in `buildWorld()`.
+- World geometry lives in its own module per subject (`track`, `station`,
+  `train`, `scenery`), each exporting one `create*()` that returns a group.
+  `buildWorld()` only assembles them.
+- Anything that has to line up between modules - rail height, platform edge,
+  gauge - belongs in `src/layout.js`, not re-derived locally. The train's
+  wheels sit on `RAIL_TOP_Y` by construction.
+- Repeated props (sleepers, trees) use `InstancedMesh`; the whole scene is
+  about 140 draw calls and 21k triangles, so keep new props instanced.
 - Movement is framerate independent — velocity integrates against `delta` and
   damps exponentially. Keep new movement code on the same footing rather than
   applying per-frame constants.
 - The animation loop clamps `delta` to 0.1s so a backgrounded tab does not
   teleport the player on return.
-- The player is pinned to eye height (1.7) with no collision or gravity. The
-  platform box is not solid — you walk through it. Collision is a deliberate
-  future step, not an oversight to patch ad hoc.
+- `buildWorld()` returns `{ scene, heightAt }`. `heightAt(x, z)` is the
+  standing surface under the player — currently just platform-or-ground, with
+  no gravity. Real collision is a deliberate future step, not an oversight to
+  patch ad hoc.
 
 ## Pointer lock
 
