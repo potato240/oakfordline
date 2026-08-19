@@ -8,11 +8,13 @@ const ACCELERATION = 12.0;
 const DAMPING = 10.0;
 const BOUNDS = 500;
 const LOOK_SENSITIVITY = 0.002;
+const PLAYER_RADIUS = 0.34;
 // Spawn standing on the platform deck.
 const PLATFORM_EYE = 1.0 + EYE_HEIGHT;
 
 export class Player {
-  constructor(camera, domElement, heightAt = () => 0) {
+  constructor(camera, domElement, heightAt = () => 0, colliders = null) {
+    this.colliders = colliders;
     // Returns the standing surface height at a world position, so the player
     // walks up onto the platform rather than through it.
     this.heightAt = heightAt;
@@ -107,8 +109,16 @@ export class Player {
     this.controls.moveRight(this.velocity.x * delta);
     this.controls.moveForward(this.velocity.z * delta);
 
-    // Stand on whatever surface is underfoot, and keep inside the world.
     const position = this.controls.object.position;
+
+    // Push out of anything solid before settling on a standing height, using
+    // last frame's height to bound the player vertically.
+    if (this.colliders) {
+      const feet = position.y - EYE_HEIGHT;
+      this.colliders.resolve(position, PLAYER_RADIUS, feet, feet + EYE_HEIGHT);
+    }
+
+    // Stand on whatever surface is underfoot, and keep inside the world.
     position.y = this.heightAt(position.x, position.z) + EYE_HEIGHT;
     position.x = THREE.MathUtils.clamp(position.x, -BOUNDS, BOUNDS);
     position.z = THREE.MathUtils.clamp(position.z, -BOUNDS, BOUNDS);

@@ -31,9 +31,14 @@ Early scaffold. What exists today:
   run. The player stands on the platform deck, or on the saloon floor.
 - A drag-to-look fallback for browsers that reject pointer lock (see below).
 
-Not built yet: no timetable or schedule beyond the shuttle loop, no reason to
-catch a particular train, and no real collision — you can still walk through
-the train's walls, the doors when shut, and the canopy columns.
+- Solid collision: the bodyshell, canopy columns, station house, benches,
+  lamps, crossing posts and lowered booms all block you. Doorways are only
+  passable while the doors are open, so you cannot board a train that has
+  already shut its doors.
+
+Not built yet: no timetable or schedule beyond the shuttle loop, and no reason
+to catch a particular train. There is no gravity — you step up onto surfaces
+rather than falling onto them.
 
 ## Stack
 
@@ -56,6 +61,7 @@ the train's walls, the doors when shut, and the canopy columns.
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
+| `src/collision.js`| Axis-aligned box colliders; circle-vs-box resolution.  |
 | `src/player.js`  | First-person controller: input, acceleration, damping. |
 | `src/style.css`  | Overlay and canvas styling.                            |
 | `vite.config.js` | Dev server on `0.0.0.0:5173`, build to `dist/`.        |
@@ -85,10 +91,15 @@ npm run build
   applying per-frame constants.
 - The animation loop clamps `delta` to 0.1s so a backgrounded tab does not
   teleport the player on return.
-- `buildWorld()` returns `{ scene, heightAt }`. `heightAt(x, z)` is the
-  standing surface under the player — currently just platform-or-ground, with
-  no gravity. Real collision is a deliberate future step, not an oversight to
-  patch ad hoc.
+- `buildWorld()` returns `{ scene, heightAt, train, crossings, colliders }`.
+  `heightAt(x, z)` is the standing surface under the player; `colliders` is
+  what stops them walking through things. The two are separate on purpose:
+  height handles what you stand *on*, collision handles what you bump *into*.
+- Colliders are axis-aligned boxes resolved against the player as a circle.
+  A box may carry `offset()` (so the train's walls travel with it) and
+  `active()` (so a doorway is only solid while its doors are shut). Add new
+  solid objects by returning boxes from the module that builds the geometry,
+  so positions cannot drift apart.
 
 ## The train
 

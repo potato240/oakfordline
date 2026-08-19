@@ -24,8 +24,8 @@ const camera = new THREE.PerspectiveCamera(
   3000
 );
 
-const { scene, heightAt, train, crossings } = buildWorld();
-const player = new Player(camera, renderer.domElement, heightAt);
+const { scene, heightAt, train, crossings, colliders } = buildWorld();
+const player = new Player(camera, renderer.domElement, heightAt, colliders);
 scene.add(player.object);
 
 // Look slightly across the track so the train is in shot on load. The camera
@@ -69,7 +69,7 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player, train, crossings };
+  window.game = { scene, camera, renderer, player, train, crossings, colliders };
 }
 
 const clock = new THREE.Clock();

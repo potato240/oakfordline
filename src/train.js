@@ -475,6 +475,59 @@ export class Train {
     );
   }
 
+  // Solid parts of the bodyshell, in train-local Z. The offset() closure keeps
+  // them attached as the unit runs, and the doorways only become solid once
+  // the doors are most of the way shut.
+  colliders() {
+    const boxes = [];
+    const offset = () => this.group.position.z;
+    const top = FLOOR_Y + CAR_HEIGHT;
+    const outer = CAR_WIDTH / 2;
+    const inner = outer - WALL_THICKNESS - 0.08;
+
+    for (const carCentre of [(CAR_LENGTH + CAR_GAP) / 2, -(CAR_LENGTH + CAR_GAP) / 2]) {
+      // Blind side: one unbroken wall.
+      boxes.push({
+        minX: -outer, maxX: -inner,
+        minZ: carCentre - HALF_LENGTH, maxZ: carCentre + HALF_LENGTH,
+        minY: FLOOR_Y, maxY: top, offset,
+      });
+
+      // Platform side: the panels between the door openings.
+      for (const segment of wallSegments()) {
+        boxes.push({
+          minX: inner, maxX: outer,
+          minZ: carCentre + segment.centre - segment.length / 2,
+          maxZ: carCentre + segment.centre + segment.length / 2,
+          minY: FLOOR_Y, maxY: top, offset,
+        });
+      }
+
+      // The openings themselves, solid only while the doors are shut.
+      for (const doorCentre of DOOR_CENTRES) {
+        boxes.push({
+          minX: inner, maxX: outer,
+          minZ: carCentre + doorCentre - DOOR_HALF_WIDTH,
+          maxZ: carCentre + doorCentre + DOOR_HALF_WIDTH,
+          minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset,
+          active: () => this.doorOpen < 0.55,
+        });
+      }
+
+      // Both ends of each car.
+      for (const end of [-1, 1]) {
+        boxes.push({
+          minX: -outer, maxX: outer,
+          minZ: carCentre + end * HALF_LENGTH - 0.14,
+          maxZ: carCentre + end * HALF_LENGTH + 0.14,
+          minY: FLOOR_Y, maxY: top, offset,
+        });
+      }
+    }
+
+    return boxes;
+  }
+
   status() {
     switch (this.state) {
       case 'dwell':

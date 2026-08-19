@@ -146,6 +146,33 @@ export class Crossing {
     this.applyBooms();
   }
 
+  // Posts are always solid; a boom only blocks the road once it is down.
+  colliders() {
+    const boxes = [];
+
+    for (const barrier of this.barriers) {
+      const side = barrier.direction === -1 ? 1 : -1;
+      const postX = side * POST_X;
+      const postZ = this.z + side * (ROAD_HALF_WIDTH + 0.6);
+
+      boxes.push({
+        minX: postX - 0.2, maxX: postX + 0.2,
+        minZ: postZ - 0.2, maxZ: postZ + 0.2,
+        minY: 0, maxY: 2.6,
+      });
+
+      const reach = barrier.direction * BOOM_LENGTH;
+      boxes.push({
+        minX: Math.min(postX, postX + reach), maxX: Math.max(postX, postX + reach),
+        minZ: postZ - 0.16, maxZ: postZ + 0.16,
+        minY: 1.2, maxY: 1.75,
+        active: () => this.lowered > 0.6,
+      });
+    }
+
+    return boxes;
+  }
+
   applyBooms() {
     for (const barrier of this.barriers) {
       // Raised is vertical; lowered is horizontal across the road.

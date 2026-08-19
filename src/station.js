@@ -254,6 +254,49 @@ function createStationHouse() {
   return group;
 }
 
+// Solid parts of the station, in world coordinates.
+export function stationColliders(z) {
+  const boxes = [];
+  const deckTop = PLATFORM_HEIGHT;
+
+  // Canopy columns - you walk under the roof but not through the posts.
+  for (let localZ = -CANOPY_LENGTH / 2; localZ <= CANOPY_LENGTH / 2; localZ += 6) {
+    for (const x of [PLATFORM_CENTRE_X - 2.2, PLATFORM_CENTRE_X + 2.2]) {
+      boxes.push({
+        minX: x - 0.16, maxX: x + 0.16,
+        minZ: z + localZ - 0.16, maxZ: z + localZ + 0.16,
+        minY: deckTop, maxY: deckTop + CANOPY_HEIGHT,
+      });
+    }
+  }
+
+  // Station house.
+  const houseZ = z - PLATFORM_LENGTH / 2 + 7;
+  boxes.push({
+    minX: PLATFORM_CENTRE_X + 1.2 - 3, maxX: PLATFORM_CENTRE_X + 1.2 + 3,
+    minZ: houseZ - 4.5, maxZ: houseZ + 4.5,
+    minY: deckTop, maxY: deckTop + 3.4,
+  });
+
+  // Benches and lamp posts.
+  for (const localZ of [-9, 1, 11]) {
+    boxes.push({
+      minX: PLATFORM_CENTRE_X + 1.6 - 0.35, maxX: PLATFORM_CENTRE_X + 1.6 + 0.35,
+      minZ: z + localZ - 0.95, maxZ: z + localZ + 0.95,
+      minY: deckTop, maxY: deckTop + 0.9,
+    });
+  }
+  for (const localZ of [-14, -2, 10, 22]) {
+    boxes.push({
+      minX: PLATFORM_CENTRE_X + 3.4 - 0.12, maxX: PLATFORM_CENTRE_X + 3.4 + 0.12,
+      minZ: z + localZ - 0.12, maxZ: z + localZ + 0.12,
+      minY: deckTop, maxY: deckTop + 3.2,
+    });
+  }
+
+  return boxes;
+}
+
 export function createStation({ name, z }) {
   const station = new THREE.Group();
   station.name = `station:${name}`;

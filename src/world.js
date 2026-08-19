@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { createTrack } from './track.js';
-import { createStation } from './station.js';
+import { createStation, stationColliders } from './station.js';
 import { Train } from './train.js';
 import { createScenery } from './scenery.js';
 import { Crossing } from './crossing.js';
+import { Colliders } from './collision.js';
 import {
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
@@ -98,14 +99,23 @@ export function buildWorld() {
   scene.add(createTrack());
   scene.add(createScenery());
 
-  for (const station of STATIONS) scene.add(createStation(station));
+  const colliders = new Colliders();
+
+  for (const station of STATIONS) {
+    scene.add(createStation(station));
+    for (const box of stationColliders(station.z)) colliders.add(box);
+  }
 
   const train = new Train();
   scene.add(train.group);
+  for (const box of train.colliders()) colliders.add(box);
 
   // Level crossings out on the line between the two stations.
   const crossings = [new Crossing(-72), new Crossing(-196)];
-  for (const crossing of crossings) scene.add(crossing.group);
+  for (const crossing of crossings) {
+    scene.add(crossing.group);
+    for (const box of crossing.colliders()) colliders.add(box);
+  }
 
   // Standing surface under the player. The train wins over the platform, so
   // stepping through the doorway puts you on the saloon floor.
@@ -115,5 +125,5 @@ export function buildWorld() {
     return 0;
   }
 
-  return { scene, heightAt, train, crossings };
+  return { scene, heightAt, train, crossings, colliders };
 }

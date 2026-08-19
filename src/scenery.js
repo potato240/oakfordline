@@ -69,20 +69,30 @@ function createHills() {
 
   const random = makeRandom(99);
 
+  // The line runs along Z, so a hill placed near the Z axis sits right on top
+  // of the track. Skip any whose skirt would reach the railway corridor.
+  const CORRIDOR_CLEARANCE = 45;
+
   for (let i = 0; i < 14; i++) {
-    const angle = (i / 14) * Math.PI * 2 + random() * 0.3;
-    const distance = 230 + random() * 90;
     const radius = 45 + random() * 55;
     const height = 16 + random() * 26;
+    const distance = 230 + random() * 90;
 
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7), material);
-    hill.position.set(
-      Math.cos(angle) * distance,
-      height / 2 - 4,
-      Math.sin(angle) * distance
-    );
-    hill.rotation.y = random() * Math.PI;
-    group.add(hill);
+    let placed = false;
+    for (let attempt = 0; attempt < 12 && !placed; attempt++) {
+      const angle = (i / 14) * Math.PI * 2 + random() * 1.2;
+      const x = Math.cos(angle) * distance;
+      const z = Math.sin(angle) * distance;
+
+      // Keep the whole cone clear of the track, which sits at x = 0.
+      if (Math.abs(x) < radius + CORRIDOR_CLEARANCE) continue;
+
+      const hill = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7), material);
+      hill.position.set(x, height / 2 - 4, z);
+      hill.rotation.y = random() * Math.PI;
+      group.add(hill);
+      placed = true;
+    }
   }
 
   return group;
