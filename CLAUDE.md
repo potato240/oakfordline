@@ -184,9 +184,9 @@ spaces on purpose**:
 - **Hands** are children of the camera, so they hold the same screen position
   however you turn your head - a held viewmodel. Verified: identical NDC at
   every pitch. Each is an actual hand: a
-  `RoundedBoxGeometry` palm and heel, plus five digits of three capsule
-  segments each on nested pivots, so the curl happens at the joints rather
-  than the finger bending as one rigid piece. 15 bones per hand.
+  `RoundedBoxGeometry` palm and heel, plus three fingers and a thumb, each
+  of three capsule segments on nested pivots, so the curl happens at the
+  joints rather than the finger bending as one rigid piece. 12 bones a hand.
 - **Boots** are world space, following position and **yaw only**. Parent them
   to the camera and they swing into the sky when you look up.
 

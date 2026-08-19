@@ -92,7 +92,7 @@ function makeHand(side) {
 
   // Palm.
   const palm = new THREE.Mesh(
-    new RoundedBoxGeometry(0.115, 0.135, 0.052, 4, 0.022),
+    new RoundedBoxGeometry(0.108, 0.135, 0.052, 4, 0.022),
     handMaterial
   );
   palm.castShadow = true;
@@ -106,12 +106,12 @@ function makeHand(side) {
   heel.position.y = -0.085;
   hand.add(heel);
 
-  // Four fingers along the top edge, splayed slightly and of unequal length.
+  // Three fingers and a thumb. Splayed slightly, unequal in length, and a
+  // little thicker than four would be so the hand stays chunky.
   const fingers = [
-    { x: -0.041, length: 0.098, radius: 0.0165, splay: 0.16 },  // index
-    { x: -0.014, length: 0.108, radius: 0.017, splay: 0.05 },   // middle
-    { x: 0.013, length: 0.100, radius: 0.016, splay: -0.05 },   // ring
-    { x: 0.038, length: 0.082, radius: 0.0145, splay: -0.17 },  // little
+    { x: -0.034, length: 0.104, radius: 0.019, splay: 0.19 },  // index
+    { x: 0.001, length: 0.112, radius: 0.0195, splay: 0.02 },  // middle
+    { x: 0.036, length: 0.094, radius: 0.018, splay: -0.18 },  // outer
   ];
 
   for (const spec of fingers) {
