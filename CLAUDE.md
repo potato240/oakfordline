@@ -67,6 +67,7 @@ rather than falling onto them.
 | `src/track.js`   | Ballast, sleepers, rails.                              |
 | `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
+|                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |

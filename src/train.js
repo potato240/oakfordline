@@ -164,6 +164,70 @@ function chevronMaterial() {
   });
 }
 
+
+// The bodyside cross-section, drawn in XY and extruded along Z.
+//
+// This is what makes it a railway carriage rather than a shoebox: the sides
+// bulge to their widest at the waist and taper back in both at the solebar and
+// again at the cantrail (tumblehome). A flat slab side reads wrong no matter
+// what you paint on it.
+//
+// Each pair is [half-width, height above the floor].
+const BODY_PROFILE = [
+  [1.06, -0.46],
+  [1.25, -0.22],
+  [1.37, 0.08],
+  [1.42, 0.6],
+  [1.42, 1.5],
+  [1.39, 1.86],
+  [1.32, 2.14],
+  [1.19, 2.36],
+  [1.03, 2.5],
+];
+
+// Outer half-width at a given height, for hanging trim on the curved surface.
+function outerHalfWidth(heightAboveFloor) {
+  const p = BODY_PROFILE;
+  if (heightAboveFloor <= p[0][1]) return p[0][0];
+  for (let i = 1; i < p.length; i++) {
+    if (heightAboveFloor <= p[i][1]) {
+      const t = (heightAboveFloor - p[i - 1][1]) / (p[i][1] - p[i - 1][1]);
+      return p[i - 1][0] + (p[i][0] - p[i - 1][0]) * t;
+    }
+  }
+  return p[p.length - 1][0];
+}
+
+function bodysideShape(side) {
+  const shape = new THREE.Shape();
+
+  shape.moveTo(side * BODY_PROFILE[0][0], FLOOR_Y + BODY_PROFILE[0][1]);
+  for (let i = 1; i < BODY_PROFILE.length; i++) {
+    shape.lineTo(side * BODY_PROFILE[i][0], FLOOR_Y + BODY_PROFILE[i][1]);
+  }
+  for (let i = BODY_PROFILE.length - 1; i >= 0; i--) {
+    const [halfWidth, y] = BODY_PROFILE[i];
+    shape.lineTo(side * (halfWidth - WALL_THICKNESS), FLOOR_Y + y);
+  }
+  shape.closePath();
+
+  return shape;
+}
+
+// The roof shell, arcing between the tops of the two bodysides.
+function roofShape() {
+  const top = BODY_PROFILE[BODY_PROFILE.length - 1];
+  const shape = new THREE.Shape();
+
+  shape.moveTo(-top[0], FLOOR_Y + top[1]);
+  shape.quadraticCurveTo(0, FLOOR_Y + top[1] + 0.62, top[0], FLOOR_Y + top[1]);
+  shape.lineTo(top[0] - 0.09, FLOOR_Y + top[1] - 0.04);
+  shape.quadraticCurveTo(0, FLOOR_Y + top[1] + 0.5, -(top[0] - 0.09), FLOOR_Y + top[1] - 0.04);
+  shape.closePath();
+
+  return shape;
+}
+
 // Wall panels run between the door openings rather than being one long box,
 // so the doorways are real holes you can walk through.
 function wallSegments() {
@@ -190,36 +254,46 @@ function addSideWall(car, side, doorLeaves) {
   const segments = side > 0 ? wallSegments() : [{ centre: 0, length: CAR_LENGTH }];
 
   for (const segment of segments) {
-    const panel = new THREE.Mesh(
-      new THREE.BoxGeometry(WALL_THICKNESS, wallHeight, segment.length),
-      materials.body
-    );
-    panel.position.set(x, FLOOR_Y + wallHeight / 2, segment.centre);
+    const panelGeometry = new THREE.ExtrudeGeometry(bodysideShape(side), {
+      depth: segment.length,
+      bevelEnabled: false,
+    });
+    panelGeometry.translate(0, 0, segment.centre - segment.length / 2);
+
+    const panel = new THREE.Mesh(panelGeometry, materials.body);
     panel.castShadow = true;
+    panel.receiveShadow = true;
     car.add(panel);
 
-    // Red waist stripe, proud of the bodyside so it catches the light.
+    // Trim hangs off the curved surface, so each piece sits at the profile's
+    // own half-width for the height it lives at.
+    const stripeX = side * (outerHalfWidth(STRIPE_Y - FLOOR_Y) - 0.03);
     const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(WALL_THICKNESS + 0.03, STRIPE_HEIGHT, segment.length),
+      new THREE.BoxGeometry(0.1, STRIPE_HEIGHT, segment.length),
       materials.stripe
     );
-    stripe.position.set(x, STRIPE_Y, segment.centre);
+    stripe.position.set(stripeX, STRIPE_Y, segment.centre);
     car.add(stripe);
 
     // Charcoal band along the bottom of the bodyside, below the silver.
     const skirtBand = new THREE.Mesh(
-      new THREE.BoxGeometry(WALL_THICKNESS + 0.02, 0.34, segment.length),
+      new THREE.BoxGeometry(0.1, 0.34, segment.length),
       materials.skirt
     );
-    skirtBand.position.set(x, FLOOR_Y + 0.17, segment.centre);
+    skirtBand.position.set(side * (outerHalfWidth(0.17) - 0.03), FLOOR_Y + 0.17, segment.centre);
     car.add(skirtBand);
 
     // White band along the top of the bodyside.
+    const cantrailY = 2.2;
     const cantrail = new THREE.Mesh(
-      new THREE.BoxGeometry(WALL_THICKNESS + 0.02, 0.14, segment.length),
+      new THREE.BoxGeometry(0.1, 0.16, segment.length),
       materials.trim
     );
-    cantrail.position.set(x, FLOOR_Y + CAR_HEIGHT - 0.07, segment.centre);
+    cantrail.position.set(
+      side * (outerHalfWidth(cantrailY) - 0.03),
+      FLOOR_Y + cantrailY,
+      segment.centre
+    );
     car.add(cantrail);
 
     // Double-arrow decal on the pier nearest the cab end.
@@ -256,17 +330,19 @@ function addSideWall(car, side, doorLeaves) {
         // Dark surround, so the glass reads as a framed window rather than a
         // painted-on rectangle.
         const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.04, 1.34, spacing * 0.9),
+          new THREE.BoxGeometry(0.12, 1.34, spacing * 0.9),
           materials.windowFrame
         );
-        surround.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
+        const glassY = CAR_HEIGHT * 0.66;
+        const glassX = side * (outerHalfWidth(glassY) - 0.04);
+        surround.position.set(glassX, FLOOR_Y + glassY, z);
         car.add(surround);
 
         const pane = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.07, 1.22, spacing * 0.82),
+          new THREE.BoxGeometry(0.12, 1.22, spacing * 0.82),
           materials.glass
         );
-        pane.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
+        pane.position.set(side * (outerHalfWidth(glassY) - 0.02), FLOOR_Y + glassY, z);
         car.add(pane);
       }
     }
@@ -551,15 +627,16 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
   addSideWall(car, 1, doorLeaves);
   addSideWall(car, -1, doorLeaves);
 
-  // Curved roof over the top.
-  const roof = new THREE.Mesh(
-    new THREE.CylinderGeometry(CAR_WIDTH / 2, CAR_WIDTH / 2, CAR_LENGTH, 16, 1, false, 0, Math.PI),
-    materials.roof
-  );
-  roof.rotation.z = Math.PI / 2;
-  roof.rotation.y = Math.PI / 2;
-  roof.scale.y = 0.34;
-  roof.position.y = FLOOR_Y + CAR_HEIGHT;
+  // Roof shell, extruded from the same cross-section family as the sides so
+  // the two actually meet instead of a cylinder sitting on a box.
+  const roofGeometry = new THREE.ExtrudeGeometry(roofShape(), {
+    depth: CAR_LENGTH,
+    bevelEnabled: false,
+    curveSegments: 14,
+  });
+  roofGeometry.translate(0, 0, -CAR_LENGTH / 2);
+
+  const roof = new THREE.Mesh(roofGeometry, materials.roof);
   roof.castShadow = true;
   car.add(roof);
 
