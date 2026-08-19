@@ -68,6 +68,34 @@ rather than falling onto them.
 | `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
+
+## Window openings are real, not glass boxes on a solid sheet
+
+The bodyside is built as three vertical bands (`extrudeBand()` in
+`src/train.js`), not one solid extrusion:
+
+```
+upper band   (WINDOW_HEAD_Y -> cantrail)   solid, full pier length
+window band  (WINDOW_SILL_Y -> WINDOW_HEAD_Y)  mullions + real gaps
+lower band   (solebar -> WINDOW_SILL_Y)    solid, full pier length
+```
+
+The middle band is NOT one solid piece with glass placed against it. It is
+solid mullions with true gaps between them, and the glass sits in the gap.
+This matters: when the bodyside was first switched to a curved tumblehome
+profile, it was built as a single watertight extrude with no opening for a
+window at all - the glass panes were still being positioned as before, but
+now they were hidden inside/behind solid silver, which is why the windows
+appeared to vanish rather than merely change style. Verified by raycasting
+from outside the car: a ray at a window's centre hits glass first with
+interior geometry behind it; the same ray shifted to the mullion between two
+windows hits solid silver.
+
+If you change `WINDOW_SILL_Y` / `WINDOW_HEAD_Y` or the window count, the
+mullion math derives from the same opening list used to place the glass, so
+they cannot drift out of sync with each other - but they can still drift out
+of sync with the *header* geometry above the doorways, which is untouched by
+this and still assumes a flat wall thickness at a fixed x.
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |

@@ -57,7 +57,7 @@ function makeHand(side) {
   // A simple sphere. Kept in its own group (rather than positioned directly)
   // so the update loop's per-frame bob/position logic - which targets this
   // group - does not need to change if the hand shape changes again later.
-  const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), handMaterial);
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), handMaterial);
   sphere.castShadow = true;
 
   const group = new THREE.Group();

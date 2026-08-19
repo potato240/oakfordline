@@ -74,8 +74,8 @@ const materials = {
 // redrawn in place when the train turns round, rather than rebuilding a mesh.
 function createDestinationBoard(width, height) {
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 128;
+  canvas.width = 1024;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -100,15 +100,19 @@ function createDestinationBoard(width, height) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Shrink to fit rather than letting long names run off the board.
-    let size = 74;
+    // Spaced-out capitals read far more reliably at a distance and low
+    // resolution than tightly kerned mixed case - a destination blind is
+    // meant to be legible from the platform, not just up close.
+    const spaced = text.toUpperCase().split('').join(' ');
+
+    let size = 148;
     ctx.font = `bold ${size}px "Segoe UI", system-ui, sans-serif`;
-    while (ctx.measureText(text).width > canvas.width - 44 && size > 22) {
-      size -= 2;
+    while (ctx.measureText(spaced).width > canvas.width - 88 && size > 44) {
+      size -= 4;
       ctx.font = `bold ${size}px "Segoe UI", system-ui, sans-serif`;
     }
 
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+    ctx.fillText(spaced, canvas.width / 2, canvas.height / 2 + 4);
     texture.needsUpdate = true;
   }
 
@@ -214,6 +218,58 @@ function bodysideShape(side) {
   return shape;
 }
 
+// Clip BODY_PROFILE to a Y sub-range, interpolating new points at the cut
+// so a band's silhouette still follows the true curve rather than being
+// approximated as a straight edge.
+function clipProfile(minY, maxY) {
+  const p = BODY_PROFILE;
+  const widthAt = (y) => outerHalfWidth(y);
+  const points = [[widthAt(minY), minY]];
+  for (const [w, y] of p) {
+    if (y > minY && y < maxY) points.push([w, y]);
+  }
+  points.push([widthAt(maxY), maxY]);
+  return points;
+}
+
+// A wall band covering only [minY, maxY] of the profile, otherwise identical
+// in construction to bodysideShape.
+function bandShape(side, minY, maxY) {
+  const profile = clipProfile(minY, maxY);
+  const shape = new THREE.Shape();
+
+  shape.moveTo(side * profile[0][0], FLOOR_Y + profile[0][1]);
+  for (let i = 1; i < profile.length; i++) {
+    shape.lineTo(side * profile[i][0], FLOOR_Y + profile[i][1]);
+  }
+  for (let i = profile.length - 1; i >= 0; i--) {
+    const [halfWidth, y] = profile[i];
+    shape.lineTo(side * (halfWidth - WALL_THICKNESS), FLOOR_Y + y);
+  }
+  shape.closePath();
+
+  return shape;
+}
+
+function extrudeBand(side, minY, maxY, centreZ, lengthZ) {
+  const geometry = new THREE.ExtrudeGeometry(bandShape(side, minY, maxY), {
+    depth: lengthZ,
+    bevelEnabled: false,
+  });
+  geometry.translate(0, 0, centreZ - lengthZ / 2);
+
+  const mesh = new THREE.Mesh(geometry, materials.body);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// Window band vertical extent, centred on the same height the glass uses.
+const WINDOW_CENTRE_Y = CAR_HEIGHT * 0.66;
+const WINDOW_SILL_Y = WINDOW_CENTRE_Y - 0.61;
+const WINDOW_HEAD_Y = WINDOW_CENTRE_Y + 0.61;
+
+
 // The roof shell, arcing between the tops of the two bodysides.
 function roofShape() {
   const top = BODY_PROFILE[BODY_PROFILE.length - 1];
@@ -254,16 +310,22 @@ function addSideWall(car, side, doorLeaves) {
   const segments = side > 0 ? wallSegments() : [{ centre: 0, length: CAR_LENGTH }];
 
   for (const segment of segments) {
-    const panelGeometry = new THREE.ExtrudeGeometry(bodysideShape(side), {
-      depth: segment.length,
-      bevelEnabled: false,
-    });
-    panelGeometry.translate(0, 0, segment.centre - segment.length / 2);
+    const segStart = segment.centre - segment.length / 2;
+    const segEnd = segment.centre + segment.length / 2;
 
-    const panel = new THREE.Mesh(panelGeometry, materials.body);
-    panel.castShadow = true;
-    panel.receiveShadow = true;
-    car.add(panel);
+    // The wall is built in three vertical bands rather than one solid sheet.
+    // A single watertight extrude has nowhere for a window to be a real
+    // opening - the glass previously placed against it just sat hidden
+    // inside the solid silver, which is why the windows disappeared instead
+    // of merely changing style when the bodyside became curved.
+    car.add(extrudeBand(side, BODY_PROFILE[0][1], WINDOW_SILL_Y, segment.centre, segment.length));
+    car.add(extrudeBand(
+      side,
+      WINDOW_HEAD_Y,
+      BODY_PROFILE[BODY_PROFILE.length - 1][1],
+      segment.centre,
+      segment.length
+    ));
 
     // Trim hangs off the curved surface, so each piece sits at the profile's
     // own half-width for the height it lives at.
@@ -316,35 +378,64 @@ function addSideWall(car, side, doorLeaves) {
     lining.position.set(x - side * WALL_THICKNESS * 0.6, FLOOR_Y + INTERIOR_HEIGHT * 0.45, segment.centre);
     car.add(lining);
 
-    // One big window per pier between the doorways. The piers are about 2.3m
-    // wide, so the old "longer than 3m" test skipped every one of them.
+    // Window band: real openings with mullions between them, not glass boxes
+    // laid against a solid sheet. The piers are about 2.3m wide, which is why
+    // two or three windows fit between each door pair rather than one.
     if (segment.length > 1.5) {
-      // The prototype carries two or three windows between each door pair,
-      // not one big one - so pack them at roughly 1.15m centres.
       const panes = Math.max(1, Math.round(segment.length / 1.15));
       const spacing = segment.length / panes;
+      const openingHalfWidth = spacing * 0.41;
 
+      const openings = [];
       for (let i = 0; i < panes; i++) {
-        const z = segment.centre - segment.length / 2 + spacing * (i + 0.5);
+        const zc = segStart + spacing * (i + 0.5);
+        openings.push([zc - openingHalfWidth, zc + openingHalfWidth]);
+      }
 
-        // Dark surround, so the glass reads as a framed window rather than a
-        // painted-on rectangle.
+      // Solid mullions fill everything in the window band that is not an
+      // opening: before the first window, between each pair, and after the
+      // last one.
+      let cursor = segStart;
+      for (const [oStart, oEnd] of openings) {
+        if (oStart - cursor > 0.02) {
+          const mullionLength = oStart - cursor;
+          car.add(
+            extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, cursor + mullionLength / 2, mullionLength)
+          );
+        }
+        cursor = oEnd;
+      }
+      if (segEnd - cursor > 0.02) {
+        const mullionLength = segEnd - cursor;
+        car.add(
+          extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, cursor + mullionLength / 2, mullionLength)
+        );
+      }
+
+      // Frame and glass sit in the actual opening, which now has nothing
+      // behind it - a real hole rather than a hidden pane.
+      for (const [oStart, oEnd] of openings) {
+        const z = (oStart + oEnd) / 2;
+        const width = oEnd - oStart;
+
         const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(0.12, 1.34, spacing * 0.9),
+          new THREE.BoxGeometry(0.12, WINDOW_HEAD_Y - WINDOW_SILL_Y + 0.12, width + 0.06),
           materials.windowFrame
         );
-        const glassY = CAR_HEIGHT * 0.66;
-        const glassX = side * (outerHalfWidth(glassY) - 0.04);
-        surround.position.set(glassX, FLOOR_Y + glassY, z);
+        const glassX = side * (outerHalfWidth(WINDOW_CENTRE_Y) - 0.04);
+        surround.position.set(glassX, FLOOR_Y + WINDOW_CENTRE_Y, z);
         car.add(surround);
 
         const pane = new THREE.Mesh(
-          new THREE.BoxGeometry(0.12, 1.22, spacing * 0.82),
+          new THREE.BoxGeometry(0.12, WINDOW_HEAD_Y - WINDOW_SILL_Y - 0.08, width - 0.1),
           materials.glass
         );
-        pane.position.set(side * (outerHalfWidth(glassY) - 0.02), FLOOR_Y + glassY, z);
+        pane.position.set(side * (outerHalfWidth(WINDOW_CENTRE_Y) - 0.02), FLOOR_Y + WINDOW_CENTRE_Y, z);
         car.add(pane);
       }
+    } else {
+      // Too narrow for a window - solid pier the full segment length.
+      car.add(extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, segment.centre, segment.length));
     }
   }
 
