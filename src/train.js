@@ -61,6 +61,7 @@ const materials = {
   door: new THREE.MeshStandardMaterial({ color: 0xeef0f1, roughness: 0.42 }),
   windowFrame: new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.55, metalness: 0.3 }),
   roofGear: new THREE.MeshStandardMaterial({ color: 0x8f9195, roughness: 0.6, metalness: 0.5 }),
+  skirt: new THREE.MeshStandardMaterial({ color: 0x53585c, roughness: 0.8 }),
   strip: new THREE.MeshStandardMaterial({
     color: 0xfff8e6,
     emissive: 0xfff2cc,
@@ -205,6 +206,14 @@ function addSideWall(car, side, doorLeaves) {
     stripe.position.set(x, STRIPE_Y, segment.centre);
     car.add(stripe);
 
+    // Charcoal band along the bottom of the bodyside, below the silver.
+    const skirtBand = new THREE.Mesh(
+      new THREE.BoxGeometry(WALL_THICKNESS + 0.02, 0.34, segment.length),
+      materials.skirt
+    );
+    skirtBand.position.set(x, FLOOR_Y + 0.17, segment.centre);
+    car.add(skirtBand);
+
     // White band along the top of the bodyside.
     const cantrail = new THREE.Mesh(
       new THREE.BoxGeometry(WALL_THICKNESS + 0.02, 0.14, segment.length),
@@ -236,7 +245,9 @@ function addSideWall(car, side, doorLeaves) {
     // One big window per pier between the doorways. The piers are about 2.3m
     // wide, so the old "longer than 3m" test skipped every one of them.
     if (segment.length > 1.5) {
-      const panes = Math.max(1, Math.round(segment.length / 2.6));
+      // The prototype carries two or three windows between each door pair,
+      // not one big one - so pack them at roughly 1.15m centres.
+      const panes = Math.max(1, Math.round(segment.length / 1.15));
       const spacing = segment.length / panes;
 
       for (let i = 0; i < panes; i++) {
@@ -245,14 +256,14 @@ function addSideWall(car, side, doorLeaves) {
         // Dark surround, so the glass reads as a framed window rather than a
         // painted-on rectangle.
         const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.04, 1.12, spacing * 0.84),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.04, 1.16, spacing * 0.88),
           materials.windowFrame
         );
         surround.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
         car.add(surround);
 
         const pane = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.07, 1.0, spacing * 0.74),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.07, 1.02, spacing * 0.78),
           materials.glass
         );
         pane.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
@@ -293,7 +304,7 @@ function addSideWall(car, side, doorLeaves) {
     for (const centre of DOOR_CENTRES) {
       for (const edge of [-1, 1]) {
         const pillar = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.05, CAR_HEIGHT, 0.14),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.06, CAR_HEIGHT, 0.19),
           materials.trim
         );
         pillar.position.set(
@@ -571,13 +582,13 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
     // Yellow wraps a short way down both bodysides at the cab end.
     for (const side of [-1, 1]) {
       const wrap = new THREE.Mesh(
-        new THREE.BoxGeometry(WALL_THICKNESS + 0.05, CAR_HEIGHT, 0.9),
+        new THREE.BoxGeometry(WALL_THICKNESS + 0.06, CAR_HEIGHT, 1.5),
         materials.cabYellow
       );
       wrap.position.set(
         side * (CAR_WIDTH / 2 - WALL_THICKNESS / 2),
         FLOOR_Y + CAR_HEIGHT / 2,
-        endZ - cabEnd * 0.45
+        endZ - cabEnd * 0.75
       );
       car.add(wrap);
     }
@@ -590,12 +601,34 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
     surround.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.3);
     car.add(surround);
 
-    const screen = new THREE.Mesh(
-      new THREE.BoxGeometry(CAR_WIDTH - 0.42, 1.0, 0.12),
-      materials.glass
+    // Two windscreen panes with a centre pillar between them.
+    for (const paneSide of [-1, 1]) {
+      const pane = new THREE.Mesh(
+        new THREE.BoxGeometry((CAR_WIDTH - 0.62) / 2, 1.0, 0.12),
+        materials.glass
+      );
+      pane.position.set(
+        paneSide * (CAR_WIDTH - 0.5) / 4,
+        FLOOR_Y + CAR_HEIGHT * 0.72,
+        endZ + cabEnd * 0.33
+      );
+      car.add(pane);
+    }
+
+    const centrePillar = new THREE.Mesh(
+      new THREE.BoxGeometry(0.11, 1.06, 0.14),
+      materials.cabYellow
     );
-    screen.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.33);
-    car.add(screen);
+    centrePillar.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.34);
+    car.add(centrePillar);
+
+    // Charcoal skirt across the bottom of the cab, matching the bodyside.
+    const cabSkirt = new THREE.Mesh(
+      new THREE.BoxGeometry(CAR_WIDTH, 0.34, 0.34),
+      materials.skirt
+    );
+    cabSkirt.position.set(0, FLOOR_Y + 0.17, endZ + cabEnd * 0.16);
+    car.add(cabSkirt);
 
     // Route indicator box on the roofline, with two red marker lamps.
     const indicator = new THREE.Mesh(
