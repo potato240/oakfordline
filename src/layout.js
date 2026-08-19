@@ -3,7 +3,7 @@
 // re-deriving numbers locally.
 
 export const TRACK_GAUGE = 1.435; // standard gauge, metres between rail inners
-export const TRACK_LENGTH = 800;
+export const TRACK_LENGTH = 2000;
 
 export const BALLAST_HEIGHT = 0.2;
 export const SLEEPER_HEIGHT = 0.16;
@@ -45,8 +45,12 @@ export const DOOR_HEIGHT = 1.95;
 
 // ---- the line ----
 
-// The route runs along Z. The train shuttles between these two stops.
+// The route runs along Z. The train works down the line calling at each stop
+// in turn, then reverses at the terminus and works back.
 export const STATIONS = [
   { name: 'Oakford', z: 0 },
-  { name: 'Bramley Halt', z: -280 },
+  { name: 'Bramley Halt', z: -200 },
+  { name: 'Wexley', z: -430 },
+  { name: 'Marsden Cross', z: -690 },
+  { name: 'Kingsford', z: -900 },
 ];

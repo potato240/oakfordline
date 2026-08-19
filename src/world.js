@@ -44,14 +44,14 @@ function createSky() {
     `,
   });
 
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(1400, 32, 16), material);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(2200, 32, 16), material);
   sky.name = 'sky';
   return sky;
 }
 
 function createGround() {
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(1600, 1600),
+    new THREE.PlaneGeometry(3000, 3000),
     new THREE.MeshStandardMaterial({ color: 0x5d6b4d, roughness: 1 })
   );
   ground.rotation.x = -Math.PI / 2;
@@ -111,7 +111,7 @@ export function buildWorld() {
   for (const box of train.colliders()) colliders.add(box);
 
   // Level crossings out on the line between the two stations.
-  const crossings = [new Crossing(-72), new Crossing(-196)];
+  const crossings = [-96, -310, -560, -800].map((z) => new Crossing(z));
   for (const crossing of crossings) {
     scene.add(crossing.group);
     for (const box of crossing.colliders()) colliders.add(box);

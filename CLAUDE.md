@@ -23,14 +23,17 @@ Early scaffold. What exists today:
   can walk into and ride. It is **double-ended**: a cab at each extremity, so
   it never turns; marker lights show white at the leading end, red at the
   trailing one, and swap over at each terminus.
-- Two level crossings on the line, with lowering booms, alternately flashing
+- Four level crossings on the line, with lowering booms, alternately flashing
   red lamps, and a bell synthesised at runtime.
 - Sliding doors on the platform side that part and close on a timer.
-- A line: the train shuttles between **Oakford** and **Bramley Halt**, 280m
-  apart, accelerating to 18 m/s and braking to a stand at each platform.
+- A five-stop line: **Oakford**, **Bramley Halt**, **Wexley**, **Marsden
+  Cross**, **Kingsford**. The train calls at each in turn, reverses at the
+  terminus and works back. A full round trip is about six minutes.
 - Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
   run. The player stands on the platform deck, or on the saloon floor.
+- A visible first-person body: arms, hands, legs and boots that swing with
+  your stride and are there when you look down.
 - A drag-to-look fallback for browsers that reject pointer lock (see below).
 
 - Solid collision: the bodyshell, canopy columns, station house, benches,
@@ -64,6 +67,7 @@ rather than falling onto them.
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
 | `src/collision.js`| Axis-aligned box colliders; circle-vs-box resolution.  |
+| `src/body.js`    | Visible first-person body and its walk cycle.          |
 | `src/player.js`  | First-person controller: input, acceleration, damping. |
 | `src/style.css`  | Overlay and canvas styling.                            |
 | `vite.config.js` | Dev server on `0.0.0.0:5173`, build to `dist/`.        |
@@ -155,6 +159,24 @@ Browsers refuse to start an `AudioContext` without a user gesture, so
 `startAudio()` is called from the start button's click handler. Calling it from
 anywhere else leaves the context `suspended` and the game silent. Bell volume
 falls off with the player's distance from the crossing.
+
+## The visible body
+
+`PlayerBody` follows the player's position and **yaw only** - it is deliberately
+not parented to the camera. Parenting would pitch the whole body when you look
+up or down, swinging your own boots into the sky.
+
+Two numbers matter and are easy to get wrong:
+
+- `HIP_DROP + thigh + shin + half the boot` must equal the 1.7 eye height, or
+  the feet float above the floor or sink through it.
+- The torso has to sit low enough to stay out of the frame. At 0.15 below the
+  eye it filled 85% of the screen when looking down; at 0.38 it is 16%.
+
+The stride advances on **distance actually travelled**, not on time, so it stays
+in step at any framerate and stops dead when you do. `main.js` measures that
+distance *after* any ride on the train, so standing in a moving carriage does
+not make you march on the spot.
 
 ## Pointer lock
 

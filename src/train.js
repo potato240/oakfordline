@@ -491,6 +491,7 @@ export class Train {
     this.group.add(createGangway());
 
     this.stationIndex = 0;
+    this.step = 1; // which way along the STATIONS list we are working
     this.targetIndex = 1;
     this.speed = 0;
     this.doorOpen = 1; // 0 shut, 1 fully open
@@ -576,7 +577,15 @@ export class Train {
           this.group.position.z = target;
           this.speed = 0;
           this.stationIndex = this.targetIndex;
-          this.targetIndex = (this.targetIndex + 1) % STATIONS.length;
+
+          // Work down the line calling at each stop, then reverse at the
+          // terminus and work back - rather than wrapping round to the far end.
+          if (this.stationIndex + this.step < 0 ||
+              this.stationIndex + this.step >= STATIONS.length) {
+            this.step = -this.step;
+          }
+          this.targetIndex = this.stationIndex + this.step;
+
           this.state = 'opening';
         }
         break;

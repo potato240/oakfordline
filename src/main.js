@@ -3,6 +3,7 @@ import './style.css';
 import { buildWorld } from './world.js';
 import { Player } from './player.js';
 import { startAudio } from './audio.js';
+import { PlayerBody } from './body.js';
 
 const canvas = document.getElementById('scene');
 const overlay = document.getElementById('overlay');
@@ -27,6 +28,10 @@ const camera = new THREE.PerspectiveCamera(
 const { scene, heightAt, train, crossings, colliders } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt, colliders);
 scene.add(player.object);
+
+const body = new PlayerBody();
+scene.add(body.group);
+const bodyEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 // Look slightly across the track so the train is in shot on load. The camera
 // already faces -Z by default, which is down the platform towards the train.
@@ -69,7 +74,7 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player, train, crossings, colliders };
+  window.game = { scene, camera, renderer, player, train, crossings, colliders, body };
 }
 
 const clock = new THREE.Clock();
@@ -87,7 +92,16 @@ renderer.setAnimationLoop(() => {
   const travelled = train.update(delta);
   if (aboard) position.z += travelled;
 
+  // Measure the player's own movement, after any ride on the train, so the
+  // walk cycle does not animate while standing still in a moving carriage.
+  const previousX = position.x;
+  const previousZ = position.z;
+
   player.update(delta);
+
+  const stepped = Math.hypot(position.x - previousX, position.z - previousZ);
+  bodyEuler.setFromQuaternion(camera.quaternion);
+  body.update(position, bodyEuler.y, stepped, delta);
 
   for (const crossing of crossings) crossing.update(delta, train, position);
 
