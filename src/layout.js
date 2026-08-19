@@ -3,7 +3,7 @@
 // re-deriving numbers locally.
 
 export const TRACK_GAUGE = 1.435; // standard gauge, metres between rail inners
-export const TRACK_LENGTH = 2000;
+export const TRACK_LENGTH = 4600;
 
 export const BALLAST_HEIGHT = 0.2;
 export const SLEEPER_HEIGHT = 0.16;
@@ -39,7 +39,7 @@ export const FLOOR_Y = AXLE_Y + 0.22;
 export const INTERIOR_HEIGHT = 2.25;
 
 // Doorways sit on the platform side (+X). Each is two leaves that part.
-export const DOOR_CENTRES = [-6, 6];
+export const DOOR_CENTRES = [-7.2, -3.6, 0, 3.6, 7.2];
 export const DOOR_HALF_WIDTH = 0.65;
 export const DOOR_HEIGHT = 1.95;
 
@@ -49,8 +49,11 @@ export const DOOR_HEIGHT = 1.95;
 // in turn, then reverses at the terminus and works back.
 export const STATIONS = [
   { name: 'Oakford', z: 0 },
-  { name: 'Bramley Halt', z: -200 },
-  { name: 'Wexley', z: -430 },
-  { name: 'Marsden Cross', z: -690 },
-  { name: 'Kingsford', z: -900 },
+  { name: 'Bramley Halt', z: -280 },
+  { name: 'Wexley', z: -560 },
+  { name: 'Marsden Cross', z: -840 },
+  { name: 'Kingsford', z: -1120 },
+  { name: 'Ashcombe', z: -1400 },
+  { name: 'Thornleigh', z: -1680 },
+  { name: 'Portmead', z: -1960 },
 ];

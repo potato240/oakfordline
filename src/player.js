@@ -6,7 +6,7 @@ const WALK_SPEED = 4.5;
 const RUN_SPEED = 8.0;
 const ACCELERATION = 12.0;
 const DAMPING = 10.0;
-const BOUNDS = 1100;
+const BOUNDS = 2250;
 const LOOK_SENSITIVITY = 0.002;
 const PLAYER_RADIUS = 0.34;
 // Spawn standing on the platform deck.

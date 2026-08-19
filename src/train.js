@@ -34,6 +34,7 @@ const STRIPE_HEIGHT = 0.17;
 const STRIPE_Y = FLOOR_Y + CAR_HEIGHT * 0.46;
 const INNER_HALF_WIDTH = CAR_WIDTH / 2 - WALL_THICKNESS;
 const CEILING_Y = FLOOR_Y + INTERIOR_HEIGHT;
+const ROOF_TOP = FLOOR_Y + CAR_HEIGHT + (CAR_WIDTH / 2) * 0.34;
 
 // KCR "Yellowhead" livery: off-white bodyside with a red waist stripe, and a
 // yellow cab face - which is what the nickname refers to.
@@ -57,6 +58,8 @@ const materials = {
   seatBack: new THREE.MeshStandardMaterial({ color: 0x27406b, roughness: 0.9 }),
   pole: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.8 }),
   door: new THREE.MeshStandardMaterial({ color: 0xe4e1d7, roughness: 0.45 }),
+  windowFrame: new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.55, metalness: 0.3 }),
+  roofGear: new THREE.MeshStandardMaterial({ color: 0x8f9195, roughness: 0.6, metalness: 0.5 }),
   strip: new THREE.MeshStandardMaterial({
     color: 0xfff8e6,
     emissive: 0xfff2cc,
@@ -114,17 +117,29 @@ function addSideWall(car, side, doorLeaves) {
     lining.position.set(x - side * WALL_THICKNESS * 0.6, FLOOR_Y + INTERIOR_HEIGHT * 0.45, segment.centre);
     car.add(lining);
 
-    // Glazing punched into longer panels.
-    if (segment.length > 3) {
-      const panes = Math.max(1, Math.floor(segment.length / 2.4));
+    // One big window per pier between the doorways. The piers are about 2.3m
+    // wide, so the old "longer than 3m" test skipped every one of them.
+    if (segment.length > 1.5) {
+      const panes = Math.max(1, Math.round(segment.length / 2.6));
       const spacing = segment.length / panes;
+
       for (let i = 0; i < panes; i++) {
         const z = segment.centre - segment.length / 2 + spacing * (i + 0.5);
+
+        // Dark surround, so the glass reads as a framed window rather than a
+        // painted-on rectangle.
+        const surround = new THREE.Mesh(
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.04, 1.12, spacing * 0.84),
+          materials.windowFrame
+        );
+        surround.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
+        car.add(surround);
+
         const pane = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.06, 0.9, spacing * 0.72),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.07, 1.0, spacing * 0.74),
           materials.glass
         );
-        pane.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.68, z);
+        pane.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
         car.add(pane);
       }
     }
@@ -247,26 +262,37 @@ function addInterior(car) {
     car.add(light);
   }
 
-  // Seating bays in the two saloons, clear of the doorways.
-  for (const saloon of [-1, 1]) {
-    for (let bay = 0; bay < 2; bay++) {
-      const baseZ = saloon * (1.4 + bay * 3.0);
-      for (const side of [-1, 1]) {
-        const x = side * (INNER_HALF_WIDTH - 0.45);
+  // Longitudinal bench seating along the piers between the doorways, as on
+  // metro stock. Driving it off wallSegments() means the seats follow the door
+  // layout automatically instead of needing to be repositioned by hand.
+  for (const segment of wallSegments()) {
+    if (segment.length < 1.6) continue;
+    const benchLength = segment.length - 0.25;
 
-        const cushion = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.1, 1.05), materials.seat);
-        cushion.position.set(x, FLOOR_Y + 0.44, baseZ);
-        cushion.castShadow = true;
-        car.add(cushion);
+    for (const side of [-1, 1]) {
+      const x = side * (INNER_HALF_WIDTH - 0.28);
 
-        const back = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.62, 1.05), materials.seatBack);
-        back.position.set(side * (INNER_HALF_WIDTH - 0.06), FLOOR_Y + 0.75, baseZ);
-        car.add(back);
+      const cushion = new THREE.Mesh(
+        new THREE.BoxGeometry(0.52, 0.1, benchLength),
+        materials.seat
+      );
+      cushion.position.set(x, FLOOR_Y + 0.45, segment.centre);
+      cushion.castShadow = true;
+      car.add(cushion);
 
-        const pedestal = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.4, 0.5), materials.under);
-        pedestal.position.set(x, FLOOR_Y + 0.2, baseZ);
-        car.add(pedestal);
-      }
+      const back = new THREE.Mesh(
+        new THREE.BoxGeometry(0.09, 0.5, benchLength),
+        materials.seatBack
+      );
+      back.position.set(side * (INNER_HALF_WIDTH - 0.03), FLOOR_Y + 0.76, segment.centre);
+      car.add(back);
+
+      const plinth = new THREE.Mesh(
+        new THREE.BoxGeometry(0.48, 0.4, benchLength),
+        materials.under
+      );
+      plinth.position.set(x, FLOOR_Y + 0.2, segment.centre);
+      car.add(plinth);
     }
   }
 
@@ -316,11 +342,61 @@ function addRunningGear(car, wheels) {
   car.add(skirt);
 }
 
+// Roof equipment, and a pantograph on the motor car. An EMU roof is rarely
+// bare, and the raised pantograph is a big part of the silhouette.
+function addRoofGear(car, withPantograph) {
+  for (const z of [-7.4, -2.2, 6.6]) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 2.0), materials.roofGear);
+    box.position.set(0, ROOF_TOP - 0.04, z);
+    box.castShadow = true;
+    car.add(box);
+  }
+
+  if (!withPantograph) return;
+
+  const panto = new THREE.Group();
+  panto.position.set(0, ROOF_TOP, 2.4);
+
+  for (const x of [-0.62, 0.62]) {
+    for (const z of [-0.7, 0.7]) {
+      const insulator = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 0.22, 8),
+        materials.under
+      );
+      insulator.position.set(x, 0.11, z);
+      panto.add(insulator);
+    }
+  }
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 1.7), materials.roofGear);
+  base.position.y = 0.26;
+  panto.add(base);
+
+  // Two arms folded into the usual Z, with the contact strip on top.
+  const lower = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 1.6), materials.roofGear);
+  lower.position.set(0, 0.62, -0.38);
+  lower.rotation.x = 0.72;
+  panto.add(lower);
+
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.4), materials.roofGear);
+  upper.position.set(0, 1.06, 0.34);
+  upper.rotation.x = -0.88;
+  panto.add(upper);
+
+  const pan = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.16), materials.roofGear);
+  pan.position.set(0, 1.36, 0.74);
+  pan.castShadow = true;
+  panto.add(pan);
+
+  car.add(panto);
+}
+
 function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
   const car = new THREE.Group();
 
   addRunningGear(car, wheels);
   addInterior(car);
+  addRoofGear(car, cabEnd === -1);
   addSideWall(car, 1, doorLeaves);
   addSideWall(car, -1, doorLeaves);
 

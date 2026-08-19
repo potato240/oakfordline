@@ -23,12 +23,14 @@ Early scaffold. What exists today:
   can walk into and ride. It is **double-ended**: a cab at each extremity, so
   it never turns; marker lights show white at the leading end, red at the
   trailing one, and swap over at each terminus.
-- Four level crossings on the line, with lowering booms, alternately flashing
+- Seven level crossings on the line, with lowering booms, alternately flashing
   red lamps, and a bell synthesised at runtime.
-- Sliding doors on the platform side that part and close on a timer.
-- A five-stop line: **Oakford**, **Bramley Halt**, **Wexley**, **Marsden
-  Cross**, **Kingsford**. The train calls at each in turn, reverses at the
-  terminus and works back. A full round trip is about six minutes.
+- Five pairs of sliding doors a side per car, metro style, parting and closing
+  on a timer.
+- An eight-stop line, each stop 280m apart over 1.96km: **Oakford**, **Bramley
+  Halt**, **Wexley**, **Marsden Cross**, **Kingsford**, **Ashcombe**,
+  **Thornleigh**, **Portmead**. The train calls at each in turn, reverses at
+  the terminus and works back. A round trip is about eleven minutes.
 - Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
   run. The player stands on the platform deck, or on the saloon floor.
@@ -90,6 +92,11 @@ npm run build
 - Anything that has to line up between modules - rail height, platform edge,
   gauge - belongs in `src/layout.js`, not re-derived locally. The train's
   wheels sit on `RAIL_TOP_Y` by construction.
+- `DOOR_CENTRES` drives far more than the doors: the bodyside panels, the
+  glazing, the seating and the door colliders are all derived from it, so
+  changing the door layout re-works the whole car. Watch for size assumptions
+  when you do - going from two doors to five shrank the piers to 2.3m and
+  silently killed the glazing, which tested for panels longer than 3m.
 - Repeated props (sleepers, trees) use `InstancedMesh`; the whole scene is
   about 410 draw calls and 33k triangles, so keep new props instanced.
 - Movement is framerate independent — velocity integrates against `delta` and

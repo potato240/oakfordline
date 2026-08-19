@@ -10,7 +10,7 @@ function makeRandom(seed) {
   };
 }
 
-const TREE_COUNT = 220;
+const TREE_COUNT = 520;
 // Keep this corridor clear so trees never grow through the railway.
 const CLEAR_HALF_WIDTH = 18;
 
@@ -73,14 +73,14 @@ function createHills() {
   // of the track. Skip any whose skirt would reach the railway corridor.
   const CORRIDOR_CLEARANCE = 45;
 
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 26; i++) {
     const radius = 45 + random() * 55;
     const height = 16 + random() * 26;
-    const distance = 230 + random() * 90;
+    const distance = 420 + random() * 260;
 
     let placed = false;
     for (let attempt = 0; attempt < 12 && !placed; attempt++) {
-      const angle = (i / 14) * Math.PI * 2 + random() * 1.2;
+      const angle = (i / 26) * Math.PI * 2 + random() * 1.2;
       const x = Math.cos(angle) * distance;
       const z = Math.sin(angle) * distance;
 
@@ -98,7 +98,8 @@ function createHills() {
   return group;
 }
 
-// Telegraph poles marching alongside the line.
+// Telegraph poles marching alongside the line. Instanced - the line is long
+// enough that one mesh per pole would dominate the frame's draw calls.
 function createTelegraphPoles() {
   const group = new THREE.Group();
   group.name = 'telegraph';
@@ -107,27 +108,41 @@ function createTelegraphPoles() {
     color: 0x5a4632,
     roughness: 0.95,
   });
-  const poleGeometry = new THREE.CylinderGeometry(0.11, 0.15, 7, 7);
-  const armGeometry = new THREE.BoxGeometry(1.5, 0.1, 0.1);
 
-  for (let z = -TRACK_LENGTH / 2; z < TRACK_LENGTH / 2; z += 26) {
-    const pole = new THREE.Group();
+  const spacing = 26;
+  const count = Math.floor(TRACK_LENGTH / spacing);
 
-    const post = new THREE.Mesh(poleGeometry, woodMaterial);
-    post.position.y = 3.5;
-    post.castShadow = true;
-    pole.add(post);
+  const posts = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.11, 0.15, 7, 7),
+    woodMaterial,
+    count
+  );
+  const arms = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.5, 0.1, 0.1),
+    woodMaterial,
+    count * 2
+  );
 
-    for (const y of [6.2, 5.5]) {
-      const arm = new THREE.Mesh(armGeometry, woodMaterial);
-      arm.position.y = y;
-      pole.add(arm);
-    }
+  const dummy = new THREE.Object3D();
 
-    pole.position.set(-9.5, 0, z);
-    group.add(pole);
+  for (let i = 0; i < count; i++) {
+    const z = -TRACK_LENGTH / 2 + i * spacing;
+
+    dummy.position.set(-9.5, 3.5, z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.updateMatrix();
+    posts.setMatrixAt(i, dummy.matrix);
+
+    [6.2, 5.5].forEach((y, j) => {
+      dummy.position.set(-9.5, y, z);
+      dummy.updateMatrix();
+      arms.setMatrixAt(i * 2 + j, dummy.matrix);
+    });
   }
 
+  posts.castShadow = true;
+  arms.castShadow = true;
+  group.add(posts, arms);
   return group;
 }
 
