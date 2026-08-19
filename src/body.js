@@ -14,9 +14,11 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 // Parenting the boots to the camera would swing them into the sky when you
 // look up; putting the hands in world space would let them drift out of frame.
 
-const HAND_OUT = 0.33; // sideways from the view centre
-const HAND_DROP = 0.27; // below the view centre
-const HAND_FORWARD = -0.52; // the camera looks down -Z
+// PEAK holds its hands big and low, well into the bottom corners and slightly
+// cropped by the frame edge. Close to the camera and wide apart does that.
+const HAND_OUT = 0.4; // sideways from the view centre
+const HAND_DROP = 0.3; // below the view centre
+const HAND_FORWARD = -0.47; // the camera looks down -Z
 
 const BOOT_OUT = 0.17;
 // NEGATIVE, because the camera looks down -Z and the body shares its yaw, so
@@ -49,7 +51,11 @@ const soleMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.9,
 });
 
-// A real hand: a rounded palm, four jointed fingers and an opposed thumb.
+// A chunky PEAK-style hand: a big soft palm, three stubby jointed fingers and
+// an opposed thumb. Held close to the camera and wide apart so the pair sit in
+// the bottom corners of the frame, slightly cropped - together they cover
+// about 9% of the screen, which is what makes them read as *your* hands rather
+// than props in the distance.
 //
 // Each finger is three capsule segments on nested pivots, so the curl happens
 // at the joints the way a knuckle does, rather than the whole finger bending
@@ -92,7 +98,7 @@ function makeHand(side) {
 
   // Palm.
   const palm = new THREE.Mesh(
-    new RoundedBoxGeometry(0.108, 0.135, 0.052, 4, 0.022),
+    new RoundedBoxGeometry(0.175, 0.185, 0.078, 5, 0.048),
     handMaterial
   );
   palm.castShadow = true;
@@ -100,41 +106,41 @@ function makeHand(side) {
 
   // Heel of the hand, tapering towards the wrist.
   const heel = new THREE.Mesh(
-    new RoundedBoxGeometry(0.095, 0.06, 0.05, 4, 0.022),
+    new RoundedBoxGeometry(0.15, 0.095, 0.074, 5, 0.042),
     handMaterial
   );
-  heel.position.y = -0.085;
+  heel.position.y = -0.115;
   hand.add(heel);
 
   // Three fingers and a thumb. Splayed slightly, unequal in length, and a
   // little thicker than four would be so the hand stays chunky.
   const fingers = [
-    { x: -0.034, length: 0.104, radius: 0.019, splay: 0.19 },  // index
-    { x: 0.001, length: 0.112, radius: 0.0195, splay: 0.02 },  // middle
-    { x: 0.036, length: 0.094, radius: 0.018, splay: -0.18 },  // outer
+    { x: -0.052, length: 0.085, radius: 0.034, splay: 0.2 },  // index
+    { x: 0.002, length: 0.094, radius: 0.036, splay: 0.02 },  // middle
+    { x: 0.056, length: 0.08, radius: 0.033, splay: -0.19 },  // outer
   ];
 
   for (const spec of fingers) {
-    const finger = makeFinger(spec.length, spec.radius, 0.3);
-    finger.position.set(side * spec.x, 0.062, 0);
+    const finger = makeFinger(spec.length, spec.radius, 0.42);
+    finger.position.set(side * spec.x, 0.085, 0);
     finger.rotation.z = side * spec.splay;
     hand.add(finger);
   }
 
   // Thumb, off the side of the palm and rotated across it.
-  const thumb = makeFinger(0.078, 0.019, 0.32);
-  thumb.position.set(side * 0.052, -0.042, 0.012);
-  thumb.rotation.z = side * 1.15;
-  thumb.rotation.x = -0.35;
+  const thumb = makeFinger(0.082, 0.036, 0.4);
+  thumb.position.set(side * 0.086, -0.055, 0.016);
+  thumb.rotation.z = side * 1.2;
+  thumb.rotation.x = -0.4;
   hand.add(thumb);
 
   const group = new THREE.Group();
   group.add(hand);
 
   // Cock the wrists so the hands frame the view rather than lying flat on.
-  group.rotation.z = side * 0.3;
-  group.rotation.x = -0.35;
-  group.rotation.y = side * -0.25;
+  group.rotation.z = side * 0.34;
+  group.rotation.x = -0.22;
+  group.rotation.y = side * -0.18;
 
   return group;
 }
