@@ -39,16 +39,16 @@ const ROOF_TOP = FLOOR_Y + CAR_HEIGHT + (CAR_WIDTH / 2) * 0.34;
 // KCR "Yellowhead" livery: off-white bodyside with a red waist stripe, and a
 // yellow cab face - which is what the nickname refers to.
 const materials = {
-  body: new THREE.MeshStandardMaterial({ color: 0xc9cdd0, roughness: 0.38, metalness: 0.25 }),
-  trim: new THREE.MeshStandardMaterial({ color: 0xf3f5f6, roughness: 0.4 }),
+  body: new THREE.MeshStandardMaterial({ color: 0xdcdfe1, roughness: 0.35, metalness: 0.3 }),
+  trim: new THREE.MeshStandardMaterial({ color: 0xfdfdfd, roughness: 0.35 }),
   stripe: new THREE.MeshStandardMaterial({ color: 0xd4262f, roughness: 0.4 }),
   cabYellow: new THREE.MeshStandardMaterial({ color: 0xf6c81b, roughness: 0.4 }),
   cabBlack: new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.5 }),
   roof: new THREE.MeshStandardMaterial({ color: 0xb4b4b0, roughness: 0.8 }),
   glass: new THREE.MeshStandardMaterial({
-    color: 0x25333c,
-    roughness: 0.12,
-    metalness: 0.45,
+    color: 0x11161a,
+    roughness: 0.1,
+    metalness: 0.5,
   }),
   under: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.9 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.5, metalness: 0.6 }),
@@ -58,7 +58,7 @@ const materials = {
   seat: new THREE.MeshStandardMaterial({ color: 0x2f4a7a, roughness: 0.9 }),
   seatBack: new THREE.MeshStandardMaterial({ color: 0x27406b, roughness: 0.9 }),
   pole: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.8 }),
-  door: new THREE.MeshStandardMaterial({ color: 0xeef0f1, roughness: 0.42 }),
+  door: new THREE.MeshStandardMaterial({ color: 0xf7f8f9, roughness: 0.4 }),
   windowFrame: new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.55, metalness: 0.3 }),
   roofGear: new THREE.MeshStandardMaterial({ color: 0x8f9195, roughness: 0.6, metalness: 0.5 }),
   skirt: new THREE.MeshStandardMaterial({ color: 0x53585c, roughness: 0.8 }),
@@ -256,14 +256,14 @@ function addSideWall(car, side, doorLeaves) {
         // Dark surround, so the glass reads as a framed window rather than a
         // painted-on rectangle.
         const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.04, 1.16, spacing * 0.88),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.04, 1.34, spacing * 0.9),
           materials.windowFrame
         );
         surround.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
         car.add(surround);
 
         const pane = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.07, 1.02, spacing * 0.78),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.07, 1.22, spacing * 0.82),
           materials.glass
         );
         pane.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, z);
@@ -304,19 +304,19 @@ function addSideWall(car, side, doorLeaves) {
     for (const centre of DOOR_CENTRES) {
       for (const edge of [-1, 1]) {
         const pillar = new THREE.Mesh(
-          new THREE.BoxGeometry(WALL_THICKNESS + 0.06, CAR_HEIGHT, 0.19),
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.09, CAR_HEIGHT, 0.3),
           materials.trim
         );
         pillar.position.set(
           x,
           FLOOR_Y + CAR_HEIGHT / 2,
-          centre + edge * (DOOR_HALF_WIDTH + 0.07)
+          centre + edge * (DOOR_HALF_WIDTH + 0.13)
         );
         car.add(pillar);
       }
 
       const lintel = new THREE.Mesh(
-        new THREE.BoxGeometry(WALL_THICKNESS + 0.05, 0.13, DOOR_HALF_WIDTH * 2 + 0.28),
+        new THREE.BoxGeometry(WALL_THICKNESS + 0.09, 0.2, DOOR_HALF_WIDTH * 2 + 0.56),
         materials.trim
       );
       lintel.position.set(x, FLOOR_Y + CAR_HEIGHT - 0.07, centre);
@@ -613,6 +613,27 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
         endZ + cabEnd * 0.33
       );
       car.add(pane);
+    }
+
+    // Black band across the cab face around the screens, and round the corners.
+    const band = new THREE.Mesh(
+      new THREE.BoxGeometry(CAR_WIDTH + 0.02, 1.32, 0.1),
+      materials.cabBlack
+    );
+    band.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.29);
+    car.add(band);
+
+    for (const bandSide of [-1, 1]) {
+      const wrap = new THREE.Mesh(
+        new THREE.BoxGeometry(WALL_THICKNESS + 0.08, 1.32, 0.5),
+        materials.cabBlack
+      );
+      wrap.position.set(
+        bandSide * (CAR_WIDTH / 2 - WALL_THICKNESS / 2),
+        FLOOR_Y + CAR_HEIGHT * 0.72,
+        endZ - cabEnd * 0.24
+      );
+      car.add(wrap);
     }
 
     const centrePillar = new THREE.Mesh(
