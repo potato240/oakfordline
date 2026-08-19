@@ -24,6 +24,11 @@ const DOOR_SECONDS = 2.2;
 
 const HALF_LENGTH = CAR_LENGTH / 2;
 
+// Gangway opening between cars: clear headroom, and half-width of the gap in
+// the end wall. The player's eye sits 1.7 above the floor, so this leaves room.
+const GANGWAY_HEIGHT = 2.02;
+const GANGWAY_HALF_WIDTH = 0.45;
+
 // Waist stripe, sitting just under the window line.
 const STRIPE_HEIGHT = 0.17;
 const STRIPE_Y = FLOOR_Y + CAR_HEIGHT * 0.46;
@@ -45,9 +50,9 @@ const materials = {
   }),
   under: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.9 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.5, metalness: 0.6 }),
-  floor: new THREE.MeshStandardMaterial({ color: 0x3f4247, roughness: 0.85 }),
-  ceiling: new THREE.MeshStandardMaterial({ color: 0xe6e6e4, roughness: 0.9 }),
-  interiorWall: new THREE.MeshStandardMaterial({ color: 0xd9d6cf, roughness: 0.85 }),
+  floor: new THREE.MeshStandardMaterial({ color: 0x77797e, roughness: 0.85 }),
+  ceiling: new THREE.MeshStandardMaterial({ color: 0xf4f3ef, roughness: 0.9 }),
+  interiorWall: new THREE.MeshStandardMaterial({ color: 0xeae7df, roughness: 0.85 }),
   seat: new THREE.MeshStandardMaterial({ color: 0x2f4a7a, roughness: 0.9 }),
   seatBack: new THREE.MeshStandardMaterial({ color: 0x27406b, roughness: 0.9 }),
   pole: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.8 }),
@@ -126,6 +131,32 @@ function addSideWall(car, side, doorLeaves) {
   }
 
   if (side > 0) {
+    // Header above each doorway. The wall opening runs the full height of the
+    // car but the leaves only reach DOOR_HEIGHT, so without this you can see
+    // daylight over the top of the doors.
+    for (const centre of DOOR_CENTRES) {
+      const headerHeight = CAR_HEIGHT - DOOR_HEIGHT;
+
+      const header = new THREE.Mesh(
+        new THREE.BoxGeometry(WALL_THICKNESS, headerHeight, DOOR_HALF_WIDTH * 2),
+        materials.body
+      );
+      header.position.set(x, FLOOR_Y + DOOR_HEIGHT + headerHeight / 2, centre);
+      header.castShadow = true;
+      car.add(header);
+
+      const headerLining = new THREE.Mesh(
+        new THREE.BoxGeometry(0.03, headerHeight, DOOR_HALF_WIDTH * 2 - 0.04),
+        materials.interiorWall
+      );
+      headerLining.position.set(
+        x - side * WALL_THICKNESS * 0.6,
+        FLOOR_Y + DOOR_HEIGHT + headerHeight / 2,
+        centre
+      );
+      car.add(headerLining);
+    }
+
     // Two sliding leaves per doorway, parting towards the ends of the car.
     for (const centre of DOOR_CENTRES) {
       for (const direction of [-1, 1]) {
@@ -184,7 +215,7 @@ function addInterior(car) {
   strip.position.y = CEILING_Y - 0.06;
   car.add(strip);
 
-  // End walls with a gangway opening.
+  // End walls, with a gangway opening wide and tall enough to walk through.
   for (const side of [-1, 1]) {
     for (const offset of [-1, 1]) {
       const panel = new THREE.Mesh(
@@ -194,12 +225,26 @@ function addInterior(car) {
       panel.position.set(offset * 0.92, FLOOR_Y + INTERIOR_HEIGHT / 2, side * HALF_LENGTH);
       car.add(panel);
     }
+
+    // Header sits above head height - the opening clears GANGWAY_HEIGHT.
     const header = new THREE.Mesh(
-      new THREE.BoxGeometry(CAR_WIDTH, 0.5, WALL_THICKNESS),
+      new THREE.BoxGeometry(CAR_WIDTH, INTERIOR_HEIGHT - GANGWAY_HEIGHT, WALL_THICKNESS),
       materials.interiorWall
     );
-    header.position.set(0, FLOOR_Y + INTERIOR_HEIGHT - 0.25, side * HALF_LENGTH);
+    header.position.set(
+      0,
+      FLOOR_Y + GANGWAY_HEIGHT + (INTERIOR_HEIGHT - GANGWAY_HEIGHT) / 2,
+      side * HALF_LENGTH
+    );
     car.add(header);
+  }
+
+  // Saloon lighting. The emissive ceiling strip looks lit but casts nothing,
+  // so without these the interior is a cave once the roof blocks the sun.
+  for (const z of [-5.5, 5.5]) {
+    const light = new THREE.PointLight(0xfff4e0, 22, 17, 1.6);
+    light.position.set(0, CEILING_Y - 0.25, z);
+    car.add(light);
   }
 
   // Seating bays in the two saloons, clear of the doorways.
@@ -384,6 +429,46 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
   return car;
 }
 
+// Bellows connection spanning the gap between the two cars, so walking
+// through the gangway is enclosed rather than open to the sky.
+function createGangway() {
+  const gangway = new THREE.Group();
+  gangway.name = 'gangway';
+
+  const bellows = new THREE.MeshStandardMaterial({ color: 0x2b2b2e, roughness: 0.95 });
+
+  // Ribbed sleeve around the opening.
+  for (let i = 0; i < 4; i++) {
+    const z = -CAR_GAP / 2 + CAR_GAP * ((i + 0.5) / 4);
+
+    for (const side of [-1, 1]) {
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(0.12, GANGWAY_HEIGHT, CAR_GAP / 5),
+        bellows
+      );
+      wall.position.set(side * (GANGWAY_HALF_WIDTH + 0.06), FLOOR_Y + GANGWAY_HEIGHT / 2, z);
+      gangway.add(wall);
+    }
+
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(GANGWAY_HALF_WIDTH * 2 + 0.24, 0.1, CAR_GAP / 5),
+      bellows
+    );
+    roof.position.set(0, FLOOR_Y + GANGWAY_HEIGHT, z);
+    gangway.add(roof);
+  }
+
+  // Plate bridging the floor gap between the cars.
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(GANGWAY_HALF_WIDTH * 2, 0.08, CAR_GAP + 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x4a4d52, roughness: 0.7, metalness: 0.4 })
+  );
+  plate.position.set(0, FLOOR_Y - 0.04, 0);
+  gangway.add(plate);
+
+  return gangway;
+}
+
 export class Train {
   constructor() {
     this.group = new THREE.Group();
@@ -402,6 +487,8 @@ export class Train {
     const rear = createCarriage({ cabEnd: -1 }, this.doorLeaves, this.wheels, this.cabs);
     rear.position.z = -(CAR_LENGTH + CAR_GAP) / 2;
     this.group.add(rear);
+
+    this.group.add(createGangway());
 
     this.stationIndex = 0;
     this.targetIndex = 1;
@@ -573,14 +660,24 @@ export class Train {
         });
       }
 
-      // Both ends of each car.
+      // Both ends of each car. The two inner ends face each other across the
+      // gangway, so they get a gap you can walk through; the outer ends of the
+      // formation stay solid.
       for (const end of [-1, 1]) {
-        boxes.push({
-          minX: -outer, maxX: outer,
-          minZ: carCentre + end * HALF_LENGTH - 0.14,
-          maxZ: carCentre + end * HALF_LENGTH + 0.14,
-          minY: FLOOR_Y, maxY: top, offset,
-        });
+        const endZ = carCentre + end * HALF_LENGTH;
+        const isInner = Math.abs(endZ) < HALF_LENGTH;
+
+        const spans = isInner
+          ? [[-outer, -GANGWAY_HALF_WIDTH], [GANGWAY_HALF_WIDTH, outer]]
+          : [[-outer, outer]];
+
+        for (const [minX, maxX] of spans) {
+          boxes.push({
+            minX, maxX,
+            minZ: endZ - 0.14, maxZ: endZ + 0.14,
+            minY: FLOOR_Y, maxY: top, offset,
+          });
+        }
       }
     }
 
