@@ -48,24 +48,50 @@ const soleMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.9,
 });
 
-// A rounded mitten: one squashed blob for the palm, a smaller one for a thumb.
+// A proper mitten silhouette, built as an extruded 2D outline rather than a
+// pile of squashed spheres: a palm that tapers to a wrist, a domed set of
+// fingers, and a thumb off one side. The bevel rounds every edge, which is
+// what stops it reading as flat cardboard.
 function makeHand(side) {
-  const hand = new THREE.Group();
+  const shape = new THREE.Shape();
 
-  const palm = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), handMaterial);
-  palm.scale.set(0.82, 1.18, 0.72);
-  hand.add(palm);
+  // Traced from the wrist, up the little-finger edge, over the fingertips,
+  // back down past the thumb. `side` mirrors it for the other hand.
+  const x = (v) => v * side;
 
-  const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), handMaterial);
-  thumb.scale.set(0.9, 1.25, 0.8);
-  thumb.position.set(-side * 0.09, 0.05, 0.02);
-  hand.add(thumb);
+  shape.moveTo(x(-0.075), -0.15);
+  shape.lineTo(x(-0.095), -0.02);
+  shape.quadraticCurveTo(x(-0.105), 0.13, x(-0.045), 0.165);
+  shape.quadraticCurveTo(x(0.0), 0.185, x(0.045), 0.16);
+  shape.quadraticCurveTo(x(0.095), 0.13, x(0.088), 0.0);
+  // thumb
+  shape.quadraticCurveTo(x(0.16), -0.005, x(0.155), -0.075);
+  shape.quadraticCurveTo(x(0.15), -0.125, x(0.075), -0.105);
+  shape.lineTo(x(0.06), -0.15);
+  shape.quadraticCurveTo(x(0.0), -0.175, x(-0.075), -0.15);
 
-  // Tilt the mittens inwards so they frame the view rather than sitting flat.
-  hand.rotation.z = side * 0.22;
-  hand.rotation.x = -0.25;
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.045,
+    bevelEnabled: true,
+    bevelThickness: 0.028,
+    bevelSize: 0.026,
+    bevelSegments: 4,
+    curveSegments: 14,
+  });
+  geometry.center();
 
-  return hand;
+  const hand = new THREE.Mesh(geometry, handMaterial);
+  hand.castShadow = true;
+
+  const group = new THREE.Group();
+  group.add(hand);
+
+  // Cock the wrists so the mittens frame the view rather than lying flat on.
+  group.rotation.z = side * 0.3;
+  group.rotation.x = -0.35;
+  group.rotation.y = side * -0.25;
+
+  return group;
 }
 
 function makeBoot() {

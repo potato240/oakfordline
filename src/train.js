@@ -30,8 +30,8 @@ const GANGWAY_HEIGHT = 2.02;
 const GANGWAY_HALF_WIDTH = 0.45;
 
 // Waist stripe, sitting just under the window line.
-const STRIPE_HEIGHT = 0.17;
-const STRIPE_Y = FLOOR_Y + CAR_HEIGHT * 0.46;
+const STRIPE_HEIGHT = 0.13;
+const STRIPE_Y = FLOOR_Y + CAR_HEIGHT * 0.38;
 const INNER_HALF_WIDTH = CAR_WIDTH / 2 - WALL_THICKNESS;
 const CEILING_Y = FLOOR_Y + INTERIOR_HEIGHT;
 const ROOF_TOP = FLOOR_Y + CAR_HEIGHT + (CAR_WIDTH / 2) * 0.34;
@@ -39,8 +39,9 @@ const ROOF_TOP = FLOOR_Y + CAR_HEIGHT + (CAR_WIDTH / 2) * 0.34;
 // KCR "Yellowhead" livery: off-white bodyside with a red waist stripe, and a
 // yellow cab face - which is what the nickname refers to.
 const materials = {
-  body: new THREE.MeshStandardMaterial({ color: 0xf2efe7, roughness: 0.42, metalness: 0.1 }),
-  stripe: new THREE.MeshStandardMaterial({ color: 0xcf2a35, roughness: 0.4 }),
+  body: new THREE.MeshStandardMaterial({ color: 0xc9cdd0, roughness: 0.38, metalness: 0.25 }),
+  trim: new THREE.MeshStandardMaterial({ color: 0xf3f5f6, roughness: 0.4 }),
+  stripe: new THREE.MeshStandardMaterial({ color: 0xd4262f, roughness: 0.4 }),
   cabYellow: new THREE.MeshStandardMaterial({ color: 0xf6c81b, roughness: 0.4 }),
   cabBlack: new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.5 }),
   roof: new THREE.MeshStandardMaterial({ color: 0xb4b4b0, roughness: 0.8 }),
@@ -57,7 +58,7 @@ const materials = {
   seat: new THREE.MeshStandardMaterial({ color: 0x2f4a7a, roughness: 0.9 }),
   seatBack: new THREE.MeshStandardMaterial({ color: 0x27406b, roughness: 0.9 }),
   pole: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.8 }),
-  door: new THREE.MeshStandardMaterial({ color: 0xe4e1d7, roughness: 0.45 }),
+  door: new THREE.MeshStandardMaterial({ color: 0xeef0f1, roughness: 0.42 }),
   windowFrame: new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.55, metalness: 0.3 }),
   roofGear: new THREE.MeshStandardMaterial({ color: 0x8f9195, roughness: 0.6, metalness: 0.5 }),
   strip: new THREE.MeshStandardMaterial({
@@ -108,6 +109,14 @@ function addSideWall(car, side, doorLeaves) {
     );
     stripe.position.set(x, STRIPE_Y, segment.centre);
     car.add(stripe);
+
+    // White band along the top of the bodyside.
+    const cantrail = new THREE.Mesh(
+      new THREE.BoxGeometry(WALL_THICKNESS + 0.02, 0.14, segment.length),
+      materials.trim
+    );
+    cantrail.position.set(x, FLOOR_Y + CAR_HEIGHT - 0.07, segment.centre);
+    car.add(cantrail);
 
     // Inner face, so the interior does not read as raw livery colour.
     const lining = new THREE.Mesh(
@@ -170,6 +179,30 @@ function addSideWall(car, side, doorLeaves) {
         centre
       );
       car.add(headerLining);
+    }
+
+    // White pillars either side of every doorway, and a white header band -
+    // on the real thing the door surrounds stand proud of the silver bodyside.
+    for (const centre of DOOR_CENTRES) {
+      for (const edge of [-1, 1]) {
+        const pillar = new THREE.Mesh(
+          new THREE.BoxGeometry(WALL_THICKNESS + 0.05, CAR_HEIGHT, 0.14),
+          materials.trim
+        );
+        pillar.position.set(
+          x,
+          FLOOR_Y + CAR_HEIGHT / 2,
+          centre + edge * (DOOR_HALF_WIDTH + 0.07)
+        );
+        car.add(pillar);
+      }
+
+      const lintel = new THREE.Mesh(
+        new THREE.BoxGeometry(WALL_THICKNESS + 0.05, 0.13, DOOR_HALF_WIDTH * 2 + 0.28),
+        materials.trim
+      );
+      lintel.position.set(x, FLOOR_Y + CAR_HEIGHT - 0.07, centre);
+      car.add(lintel);
     }
 
     // Two sliding leaves per doorway, parting towards the ends of the car.
