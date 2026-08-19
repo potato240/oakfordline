@@ -38,7 +38,7 @@ export const AXLE_Y = RAIL_TOP_Y + WHEEL_RADIUS;
 export const FLOOR_Y = AXLE_Y + 0.22;
 export const INTERIOR_HEIGHT = 2.25;
 
-// Doorways sit on the platform side (+X). Each is two leaves that part.
+// Doorways sit on both sides now. Each is two leaves that part.
 export const DOOR_CENTRES = [-7.2, -3.6, 0, 3.6, 7.2];
 export const DOOR_HALF_WIDTH = 0.65;
 export const DOOR_HEIGHT = 1.95;

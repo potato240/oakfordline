@@ -27,8 +27,8 @@ Early scaffold. What exists today:
   trailing one, and swap over at each terminus.
 - Seven level crossings on the line, with lowering booms, alternately flashing
   red lamps, and a bell synthesised at runtime.
-- Five pairs of sliding doors a side per car, metro style, parting and closing
-  on a timer.
+- Five pairs of sliding doors on **both** sides of each car, metro style,
+  parting and closing on a timer together.
 - An eight-stop line, each stop 280m apart over 1.96km: **Oakford**, **Bramley
   Halt**, **Wexley**, **Marsden Cross**, **Kingsford**, **Ashcombe**,
   **Thornleigh**, **Portmead**. The train calls at each in turn, reverses at
@@ -96,6 +96,26 @@ mullion math derives from the same opening list used to place the glass, so
 they cannot drift out of sync with each other - but they can still drift out
 of sync with the *header* geometry above the doorways, which is untouched by
 this and still assumes a flat wall thickness at a fixed x.
+
+## Doors on both sides
+
+`addSideWall()` used to gate the whole door/header/pillar block on `side > 0`
+and give the -X side one unbroken wall - there was only ever a doorway on the
+platform side. Both sides now build the same door-aware `wallSegments()` and
+the same header/pillar/leaf block, mirrored by `side`. Two offsets that were
+hardcoded assuming +X (`x + 0.03` for the leaf and its window) had to become
+`x + side * 0.03`, or the -X doors would sit pushed into the car instead of
+proud of the correct exterior face.
+
+`Train.colliders()` had the same asymmetry - the blind side was a single solid
+box with no door gap. It now loops over both sides building the same segmented
+walls and door-active openings, so collision matches what you see: walk up to
+a shut door on either side and you are blocked; open, you pass through.
+
+One consequence worth knowing: at a station, both sides' doors at the same Z
+open together, so it is possible to walk in one door and straight out the
+other - there being no platform on the -X side, doing so drops you onto the
+ballast at ground level rather than another platform.
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
