@@ -68,6 +68,101 @@ const materials = {
   }),
 };
 
+
+// Dot-matrix style destination board. The canvas is kept so the text can be
+// redrawn in place when the train turns round, rather than rebuilding a mesh.
+function createDestinationBoard(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 8;
+
+  const mesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(width, height),
+    new THREE.MeshStandardMaterial({
+      map: texture,
+      emissive: 0xffffff,
+      emissiveMap: texture,
+      emissiveIntensity: 0.55,
+      roughness: 0.6,
+    })
+  );
+
+  function set(text) {
+    ctx.fillStyle = '#0b0b0d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#ffb43c';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Shrink to fit rather than letting long names run off the board.
+    let size = 74;
+    ctx.font = `bold ${size}px "Segoe UI", system-ui, sans-serif`;
+    while (ctx.measureText(text).width > canvas.width - 44 && size > 22) {
+      size -= 2;
+      ctx.font = `bold ${size}px "Segoe UI", system-ui, sans-serif`;
+    }
+
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+    texture.needsUpdate = true;
+  }
+
+  set('');
+  return { mesh, set };
+}
+
+// KCR-style double arrow, drawn once to a transparent canvas and applied as a
+// decal on the bodyside.
+function createChevronTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#d4262f';
+  ctx.strokeStyle = '#d4262f';
+  ctx.lineWidth = 26;
+  ctx.lineCap = 'square';
+
+  // Two chevrons and a bar, reading as an arrow along the bodyside.
+  for (const x of [120, 210]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 34);
+    ctx.lineTo(x - 58, 80);
+    ctx.lineTo(x, 126);
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(215, 80);
+  ctx.lineTo(400, 80);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(345, 30);
+  ctx.lineTo(408, 80);
+  ctx.lineTo(345, 130);
+  ctx.stroke();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 8;
+  return texture;
+}
+
+let chevronTexture = null;
+function chevronMaterial() {
+  if (!chevronTexture) chevronTexture = createChevronTexture();
+  return new THREE.MeshStandardMaterial({
+    map: chevronTexture,
+    transparent: true,
+    roughness: 0.5,
+  });
+}
+
 // Wall panels run between the door openings rather than being one long box,
 // so the doorways are real holes you can walk through.
 function wallSegments() {
@@ -117,6 +212,18 @@ function addSideWall(car, side, doorLeaves) {
     );
     cantrail.position.set(x, FLOOR_Y + CAR_HEIGHT - 0.07, segment.centre);
     car.add(cantrail);
+
+    // Double-arrow decal on the pier nearest the cab end.
+    if (segment.centre > HALF_LENGTH - 2.6) {
+      const chevron = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.47), chevronMaterial());
+      chevron.position.set(
+        x + side * (WALL_THICKNESS / 2 + 0.012),
+        STRIPE_Y + 0.36,
+        segment.centre
+      );
+      chevron.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
+      car.add(chevron);
+    }
 
     // Inner face, so the interior does not read as raw livery colour.
     const lining = new THREE.Mesh(
@@ -447,6 +554,8 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
 
   // A driving cab at one end. The unit is double-ended, so this is built
   // twice - once facing +Z, once facing -Z - and never needs turning.
+  let board = null;
+
   if (cabEnd !== 0) {
     const endZ = cabEnd * HALF_LENGTH;
 
@@ -490,11 +599,17 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
 
     // Route indicator box on the roofline, with two red marker lamps.
     const indicator = new THREE.Mesh(
-      new THREE.BoxGeometry(0.9, 0.32, 0.16),
+      new THREE.BoxGeometry(1.28, 0.4, 0.16),
       materials.cabBlack
     );
     indicator.position.set(0, FLOOR_Y + CAR_HEIGHT - 0.02, endZ + cabEnd * 0.3);
     car.add(indicator);
+
+    // Destination board set into the indicator box.
+    board = createDestinationBoard(1.15, 0.3);
+    board.mesh.position.set(0, FLOOR_Y + CAR_HEIGHT - 0.02, endZ + cabEnd * 0.39);
+    board.mesh.rotation.y = cabEnd > 0 ? 0 : Math.PI;
+    car.add(board.mesh);
 
     for (const side of [-1, 1]) {
       const marker = new THREE.Mesh(
@@ -532,7 +647,7 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
       lamps.push(lamp);
     }
 
-    cabs.push({ end: cabEnd, lamps });
+    cabs.push({ end: cabEnd, lamps, board });
   }
 
   return car;
@@ -614,6 +729,7 @@ export class Train {
 
     this.applyDoors();
     this.applyLights();
+    this.updateDestinationBoards();
   }
 
   // White at the leading cab, red at the trailing one. Because the unit is
@@ -640,6 +756,22 @@ export class Train {
   // Where this leg ends. A crossing beyond this point is not our problem yet.
   get targetZ() {
     return STATIONS[this.targetIndex].z;
+  }
+
+  // What the blinds show: the far end of the line in the direction of travel,
+  // not the next stop. `step` already flips on arrival at a terminus, so the
+  // board reads the return destination while the train sits there.
+  get destination() {
+    return this.step > 0 ? STATIONS[STATIONS.length - 1] : STATIONS[0];
+  }
+
+  updateDestinationBoards() {
+    const text = this.destination.name;
+    if (text === this.shownDestination) return;
+    this.shownDestination = text;
+    for (const cab of this.cabs) {
+      if (cab.board) cab.board.set(text);
+    }
   }
 
   applyDoors() {
@@ -715,6 +847,8 @@ export class Train {
     }
 
     this.applyDoors();
+
+    this.updateDestinationBoards();
 
     // Swap the marker lights over when the unit changes ends at a terminus.
     const heading = Math.sign(STATIONS[this.targetIndex].z - this.group.position.z);

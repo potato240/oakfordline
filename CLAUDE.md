@@ -18,7 +18,9 @@ Early scaffold. What exists today:
   at standard gauge.
 - A working two-car train in **KCR "Yellowhead" livery** — silver bodyside,
   white door pillars and cantrail band, a low red stripe, and a yellow cab face
-  with black windscreen surround and red marker lamps — with a full interior — floor,
+  with black windscreen surround and red marker lamps. A red double-arrow decal
+  sits on each bodyside near the cab, and a live destination board on each cab
+  face shows the terminus it is working towards — with a full interior — floor,
   ceiling with a lit strip, lined walls, seating bays, grab poles — that you
   can walk into and ride. It is **double-ended**: a cab at each extremity, so
   it never turns; marker lights show white at the leading end, red at the
@@ -181,9 +183,10 @@ spaces on purpose**:
 
 - **Hands** are children of the camera, so they hold the same screen position
   however you turn your head - a held viewmodel. Verified: identical NDC at
-  every pitch. Each is an **extruded 2D outline** (`THREE.Shape` traced from
-  wrist to fingertips to thumb, then bevelled), not primitives stuck together -
-  which is what gives it a mitten silhouette instead of a blob.
+  every pitch. Each is an actual hand: a
+  `RoundedBoxGeometry` palm and heel, plus five digits of three capsule
+  segments each on nested pivots, so the curl happens at the joints rather
+  than the finger bending as one rigid piece. 15 bones per hand.
 - **Boots** are world space, following position and **yaw only**. Parent them
   to the camera and they swing into the sky when you look up.
 
