@@ -201,8 +201,21 @@ export class Crossing {
     // Approaching if the train is heading towards us rather than away.
     const approaching = Math.sign(-offset) === train.direction && train.speed > 0.2;
 
+    // ...and only if we are on the leg the train is actually working. A train
+    // braking into a station brings the next crossing beyond that station
+    // inside the warning range, but it is going to stop short of it, so that
+    // crossing must stay up. The crossing has to lie between the train and the
+    // station it is running to.
+    const trainZ = train.group.position.z;
+    const toTarget = train.targetZ - trainZ;
+    const toCrossing = this.z - trainZ;
+    const onThisLeg =
+      Math.sign(toCrossing) === Math.sign(toTarget) &&
+      Math.abs(toCrossing) <= Math.abs(toTarget);
+
     this.active =
-      (approaching && distance < WARN_DISTANCE) || distance < CLEAR_DISTANCE;
+      (onThisLeg && approaching && distance < WARN_DISTANCE) ||
+      distance < CLEAR_DISTANCE;
 
     // Booms follow the warning state, with a lag so the bell leads them.
     const target = this.active ? 1 : 0;

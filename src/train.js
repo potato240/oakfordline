@@ -604,6 +604,11 @@ export class Train {
     return STATIONS[this.targetIndex];
   }
 
+  // Where this leg ends. A crossing beyond this point is not our problem yet.
+  get targetZ() {
+    return STATIONS[this.targetIndex].z;
+  }
+
   applyDoors() {
     const travel = this.doorOpen * (DOOR_HALF_WIDTH * 0.96);
     for (const { leaf, window, closedZ, direction } of this.doorLeaves) {

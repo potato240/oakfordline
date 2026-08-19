@@ -147,9 +147,16 @@ through a shut door yet.
 takes the train and the player position and decides whether to warn:
 
 ```
-approaching && distance < 150m   ->  warn
-distance < 34m                   ->  stay down until well clear
+on the current leg && approaching && distance < 150m  ->  warn
+distance < 34m                                        ->  stay down until clear
 ```
+
+**"On the current leg" matters.** A crossing must lie between the train and the
+station it is running to. Without that test, a train braking into a station
+brings the crossing *beyond* that station inside the 150m warning range and
+drops its booms - even though the train is about to stop short of it and sit
+there for a fourteen second dwell. With stops 280m apart and crossings midway,
+that fired on almost every arrival.
 
 Booms take 3.2s to travel, which is why the warning starts 150m out — the
 barriers are fully down long before the train arrives. Booms pivot about the
