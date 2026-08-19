@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // A PEAK-style first-person body: just hands and boots, with no arms, legs or
 // torso connecting them.
@@ -54,78 +53,15 @@ const soleMaterial = new THREE.MeshStandardMaterial({
 // A chunky three-dimensional hand: solid rounded palm, three fat fingers and a
 // thumb, each of three capsule segments on nested pivots so the curl happens at
 // the knuckles.
-function makeFinger(length, radius, curl) {
-  const root = new THREE.Group();
-  let parent = root;
-
-  [0.42, 0.33, 0.25].forEach((share, i) => {
-    const segmentLength = length * share;
-
-    const joint = new THREE.Group();
-    joint.rotation.x = i === 0 ? curl * 0.6 : curl;
-    parent.add(joint);
-
-    const bone = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius * (1 - i * 0.12), segmentLength, 3, 10),
-      handMaterial
-    );
-    bone.position.y = segmentLength / 2;
-    bone.castShadow = true;
-    joint.add(bone);
-
-    const tip = new THREE.Group();
-    tip.position.y = segmentLength;
-    joint.add(tip);
-    parent = tip;
-  });
-
-  return root;
-}
-
 function makeHand(side) {
-  const hand = new THREE.Group();
-
-  const palm = new THREE.Mesh(
-    new RoundedBoxGeometry(0.19, 0.2, 0.095, 6, 0.055),
-    handMaterial
-  );
-  palm.castShadow = true;
-  hand.add(palm);
-
-  const heel = new THREE.Mesh(
-    new RoundedBoxGeometry(0.16, 0.1, 0.09, 6, 0.048),
-    handMaterial
-  );
-  heel.position.y = -0.13;
-  heel.castShadow = true;
-  hand.add(heel);
-
-  const fingers = [
-    { x: -0.058, length: 0.082, radius: 0.037, splay: 0.16 },
-    { x: 0.0, length: 0.09, radius: 0.039, splay: 0.0 },
-    { x: 0.058, length: 0.079, radius: 0.036, splay: -0.16 },
-  ];
-
-  for (const spec of fingers) {
-    const finger = makeFinger(spec.length, spec.radius, 0.34);
-    finger.position.set(side * spec.x, 0.09, 0);
-    finger.rotation.z = side * spec.splay;
-    hand.add(finger);
-  }
-
-  const thumb = makeFinger(0.075, 0.038, 0.34);
-  thumb.position.set(side * 0.095, -0.05, 0.02);
-  thumb.rotation.z = side * 1.2;
-  thumb.rotation.x = -0.35;
-  hand.add(thumb);
+  // A simple sphere. Kept in its own group (rather than positioned directly)
+  // so the update loop's per-frame bob/position logic - which targets this
+  // group - does not need to change if the hand shape changes again later.
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 12), handMaterial);
+  sphere.castShadow = true;
 
   const group = new THREE.Group();
-  group.add(hand);
-
-  group.rotation.x = -0.75;
-  group.rotation.z = side * 0.3;
-  group.rotation.y = side * -0.12;
-
+  group.add(sphere);
   return group;
 }
 
