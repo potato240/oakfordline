@@ -1,113 +1,120 @@
 import * as THREE from 'three';
 
-// A first-person body you can actually see when you look down - arms out in
-// front, legs below, swinging with the walk cycle.
+// A PEAK-style first-person body: just hands and boots, with no arms, legs or
+// torso connecting them.
 //
-// It is NOT parented to the camera. Parenting would pitch the whole body when
-// you look up or down, so your feet would swing into the sky. Instead it
-// follows the player's position and *yaw only*, which is what makes looking
-// down at your own boots read correctly.
+// The two halves deliberately live in different spaces:
+//
+//   hands - children of the CAMERA, so they hold station at the lower corners
+//           of the frame however you turn your head, like a held viewmodel.
+//   boots - world space, following the player's position and yaw only, so they
+//           stay planted and come into view when you look down.
+//
+// Parenting the boots to the camera would swing them into the sky when you
+// look up; putting the hands in world space would let them drift out of frame.
 
-// Shoulders sit well below the eye: any closer and the torso swallows the
-// whole frame when you look down.
-const SHOULDER_DROP = 0.42;
-const SHOULDER_HALF_WIDTH = 0.19;
-// Chosen so hip + thigh + shin + half the boot equals the 1.7 eye height,
-// which puts the soles exactly on the surface the player is standing on.
-const HIP_DROP = 0.855;
-const HIP_HALF_WIDTH = 0.11;
+const HAND_OUT = 0.33; // sideways from the view centre
+const HAND_DROP = 0.27; // below the view centre
+const HAND_FORWARD = -0.52; // the camera looks down -Z
 
-const STRIDE_LENGTH = 1.5; // metres of travel per half stride
-const MAX_SWING = 0.75; // radians at full running speed
+const BOOT_OUT = 0.17;
+// NEGATIVE, because the camera looks down -Z and the body shares its yaw, so
+// forward is -Z here just as it is for HAND_FORWARD. Positive put the boots
+// behind the player, permanently out of shot.
+//
+// The magnitude matters too: at 0.26 the boots sat 81 degrees below horizontal,
+// past the bottom edge of the frame even looking straight down. At 0.6 they are
+// about 70 degrees - in view when you look down, out of it when you look ahead.
+const BOOT_FORWARD = -0.6;
 
-const skin = new THREE.MeshStandardMaterial({ color: 0xc98d63, roughness: 0.8 });
-const sleeve = new THREE.MeshStandardMaterial({ color: 0x2f4f63, roughness: 0.85 });
-const trouser = new THREE.MeshStandardMaterial({ color: 0x333a46, roughness: 0.9 });
-const boot = new THREE.MeshStandardMaterial({ color: 0x241f1c, roughness: 0.95 });
+const STRIDE_LENGTH = 1.4; // metres of travel per half stride
+const STEP_REACH = 0.3; // how far a boot swings fore and aft
+const STEP_LIFT = 0.14;
 
-// A limb hanging from a pivot: the geometry is shifted down so the pivot sits
-// at the joint, which means rotating the pivot swings the limb from the joint.
-function makeLimb(width, length, material) {
-  const geometry = new THREE.BoxGeometry(width, length, width);
-  geometry.translate(0, -length / 2, 0);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
-  return mesh;
+const handMaterial = new THREE.MeshStandardMaterial({
+  color: 0x9fe3b8,
+  roughness: 0.75,
+});
+const bootMaterial = new THREE.MeshStandardMaterial({
+  color: 0x5f3327,
+  roughness: 0.85,
+});
+const cuffMaterial = new THREE.MeshStandardMaterial({
+  color: 0xa8e6c0,
+  roughness: 0.8,
+});
+const soleMaterial = new THREE.MeshStandardMaterial({
+  color: 0xe08a3c,
+  roughness: 0.9,
+});
+
+// A rounded mitten: one squashed blob for the palm, a smaller one for a thumb.
+function makeHand(side) {
+  const hand = new THREE.Group();
+
+  const palm = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), handMaterial);
+  palm.scale.set(0.82, 1.18, 0.72);
+  hand.add(palm);
+
+  const thumb = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), handMaterial);
+  thumb.scale.set(0.9, 1.25, 0.8);
+  thumb.position.set(-side * 0.09, 0.05, 0.02);
+  hand.add(thumb);
+
+  // Tilt the mittens inwards so they frame the view rather than sitting flat.
+  hand.rotation.z = side * 0.22;
+  hand.rotation.x = -0.25;
+
+  return hand;
 }
 
-function makeArm(side) {
-  const pivot = new THREE.Group();
-  pivot.position.set(side * SHOULDER_HALF_WIDTH, -SHOULDER_DROP, 0);
+function makeBoot() {
+  const boot = new THREE.Group();
 
-  const upper = makeLimb(0.1, 0.3, sleeve);
-  pivot.add(upper);
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 10), bootMaterial);
+  shell.scale.set(1.0, 0.8, 1.55);
+  shell.castShadow = true;
+  boot.add(shell);
 
-  // Forearm hinges at the elbow and is held forward, so it stays in view.
-  const elbow = new THREE.Group();
-  elbow.position.y = -0.3;
-  elbow.rotation.x = -1.15;
-  pivot.add(elbow);
+  const cuff = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.082, 0.088, 0.05, 12),
+    cuffMaterial
+  );
+  cuff.position.set(0, 0.075, -0.03);
+  boot.add(cuff);
 
-  const forearm = makeLimb(0.09, 0.27, skin);
-  elbow.add(forearm);
+  const toe = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.035, 0.07), soleMaterial);
+  toe.position.set(0, 0.045, 0.1);
+  boot.add(toe);
 
-  const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.08), skin);
-  hand.position.y = -0.33;
-  hand.castShadow = true;
-  elbow.add(hand);
-
-  return pivot;
-}
-
-function makeLeg(side) {
-  const pivot = new THREE.Group();
-  pivot.position.set(side * HIP_HALF_WIDTH, -HIP_DROP, 0);
-
-  const thigh = makeLimb(0.13, 0.42, trouser);
-  pivot.add(thigh);
-
-  const knee = new THREE.Group();
-  knee.position.y = -0.42;
-  pivot.add(knee);
-
-  const shin = makeLimb(0.11, 0.38, trouser);
-  knee.add(shin);
-
-  const foot = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.09, 0.26), boot);
-  foot.position.set(0, -0.38, 0.06);
-  foot.castShadow = true;
-  knee.add(foot);
-
-  return { pivot, knee };
+  return boot;
 }
 
 export class PlayerBody {
-  constructor() {
+  constructor(camera) {
+    // Hands ride with the camera.
+    this.handRig = new THREE.Group();
+    this.handRig.name = 'player-hands';
+
+    this.hands = [makeHand(-1), makeHand(1)];
+    this.hands[0].position.set(-HAND_OUT, -HAND_DROP, HAND_FORWARD);
+    this.hands[1].position.set(HAND_OUT, -HAND_DROP, HAND_FORWARD);
+    for (const hand of this.hands) this.handRig.add(hand);
+
+    camera.add(this.handRig);
+
+    // Boots stay in the world.
     this.group = new THREE.Group();
-    this.group.name = 'player-body';
+    this.group.name = 'player-feet';
 
-    // Chest, so looking straight down does not show a hole where you are.
-    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.46, 0.18), sleeve);
-    chest.position.y = -0.63;
-    chest.castShadow = true;
-    this.group.add(chest);
-
-    const hips = new THREE.Mesh(new THREE.BoxGeometry(0.31, 0.2, 0.19), trouser);
-    hips.position.y = -0.9;
-    hips.castShadow = true;
-    this.group.add(hips);
-
-    this.arms = [makeArm(-1), makeArm(1)];
-    this.legs = [makeLeg(-1), makeLeg(1)];
-
-    for (const arm of this.arms) this.group.add(arm);
-    for (const leg of this.legs) this.group.add(leg.pivot);
+    this.boots = [makeBoot(), makeBoot()];
+    for (const boot of this.boots) this.group.add(boot);
 
     this.phase = 0;
   }
 
   // `distance` is how far the player actually moved this frame, so the stride
-  // stays in step with real travel rather than drifting against framerate.
+  // tracks real travel rather than drifting with framerate.
   update(position, yaw, distance, delta) {
     this.group.position.copy(position);
     this.group.rotation.y = yaw;
@@ -115,19 +122,31 @@ export class PlayerBody {
     const speed = delta > 0 ? distance / delta : 0;
     this.phase += (distance / STRIDE_LENGTH) * Math.PI;
 
-    // Swing scales with speed, so standing still means standing still.
-    const swing = Math.min(speed / 6, 1) * MAX_SWING;
-    const cycle = Math.sin(this.phase) * swing;
+    // Everything settles when you stop moving.
+    const effort = Math.min(speed / 6, 1);
+    const cycle = Math.sin(this.phase) * effort;
+    const lift = Math.abs(Math.cos(this.phase)) * effort;
 
-    this.legs[0].pivot.rotation.x = cycle;
-    this.legs[1].pivot.rotation.x = -cycle;
-    // Knees only bend on the backswing, which stops the shin passing through
-    // the thigh.
-    this.legs[0].knee.rotation.x = Math.max(0, -cycle) * 1.1;
-    this.legs[1].knee.rotation.x = Math.max(0, cycle) * 1.1;
+    // `position` is eye level, so drop to the sole of the boot.
+    const groundDrop = -1.7 + 0.09;
 
-    // Arms counter-swing against the legs.
-    this.arms[0].rotation.x = -cycle * 0.55;
-    this.arms[1].rotation.x = cycle * 0.55;
+    this.boots.forEach((boot, i) => {
+      const side = i === 0 ? -1 : 1;
+      const swing = i === 0 ? cycle : -cycle;
+
+      boot.position.set(
+        side * BOOT_OUT,
+        groundDrop + (swing > 0 ? lift * STEP_LIFT : 0),
+        BOOT_FORWARD + swing * STEP_REACH
+      );
+      boot.rotation.x = swing * 0.35;
+    });
+
+    // Hands bob against the stride, opposite each other.
+    this.hands.forEach((hand, i) => {
+      const bob = (i === 0 ? cycle : -cycle) * 0.045;
+      hand.position.y = -HAND_DROP + bob;
+      hand.position.z = HAND_FORWARD - Math.abs(bob) * 0.35;
+    });
   }
 }

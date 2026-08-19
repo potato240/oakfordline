@@ -29,7 +29,7 @@ const { scene, heightAt, train, crossings, colliders } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt, colliders);
 scene.add(player.object);
 
-const body = new PlayerBody();
+const body = new PlayerBody(camera);
 scene.add(body.group);
 const bodyEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 

@@ -34,8 +34,8 @@ Early scaffold. What exists today:
 - Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
   run. The player stands on the platform deck, or on the saloon floor.
-- A visible first-person body: arms, hands, legs and boots that swing with
-  your stride and are there when you look down.
+- A visible first-person body in the style of PEAK: **just** two hands and two
+  boots, no arms, legs or torso.
 - A drag-to-look fallback for browsers that reject pointer lock (see below).
 
 - Solid collision: the bodyshell, canopy columns, station house, benches,
@@ -169,16 +169,24 @@ falls off with the player's distance from the crossing.
 
 ## The visible body
 
-`PlayerBody` follows the player's position and **yaw only** - it is deliberately
-not parented to the camera. Parenting would pitch the whole body when you look
-up or down, swinging your own boots into the sky.
+Hands and boots only, no connecting limbs. The two halves live in **different
+spaces on purpose**:
 
-Two numbers matter and are easy to get wrong:
+- **Hands** are children of the camera, so they hold the same screen position
+  however you turn your head - a held viewmodel. Verified: identical NDC at
+  every pitch.
+- **Boots** are world space, following position and **yaw only**. Parent them
+  to the camera and they swing into the sky when you look up.
 
-- `HIP_DROP + thigh + shin + half the boot` must equal the 1.7 eye height, or
-  the feet float above the floor or sink through it.
-- The torso has to sit low enough to stay out of the frame. At 0.15 below the
-  eye it filled 85% of the screen when looking down; at 0.38 it is 16%.
+Both `HAND_FORWARD` and `BOOT_FORWARD` are **negative**, because the camera
+looks down -Z and the body shares its yaw. A positive `BOOT_FORWARD` puts the
+boots behind the player, permanently out of shot - which is exactly what
+happened first time.
+
+Their distance in front matters as well as their sign: at 0.26 the boots sat 81
+degrees below horizontal, past the bottom edge of the frame even when looking
+straight down. At 0.6 they are about 70 degrees, so they appear when you look
+down and stay out of the way when you look ahead.
 
 The stride advances on **distance actually travelled**, not on time, so it stays
 in step at any framerate and stops dead when you do. `main.js` measures that
