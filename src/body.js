@@ -28,7 +28,7 @@ const BOOT_OUT = 0.17;
 // The magnitude matters too: at 0.26 the boots sat 81 degrees below horizontal,
 // past the bottom edge of the frame even looking straight down. At 0.6 they are
 // about 70 degrees - in view when you look down, out of it when you look ahead.
-const BOOT_FORWARD = -0.6;
+const BOOT_FORWARD = -0.22; // kept short so the boots sit under you
 
 const STRIDE_LENGTH = 1.4; // metres of travel per half stride
 const STEP_REACH = 0.3; // how far a boot swings fore and aft
@@ -98,7 +98,7 @@ function makeHand(side) {
 
   // Palm.
   const palm = new THREE.Mesh(
-    new RoundedBoxGeometry(0.175, 0.185, 0.078, 5, 0.048),
+    new RoundedBoxGeometry(0.185, 0.2, 0.055, 5, 0.05),
     handMaterial
   );
   palm.castShadow = true;
@@ -106,41 +106,43 @@ function makeHand(side) {
 
   // Heel of the hand, tapering towards the wrist.
   const heel = new THREE.Mesh(
-    new RoundedBoxGeometry(0.15, 0.095, 0.074, 5, 0.042),
+    new RoundedBoxGeometry(0.155, 0.1, 0.053, 5, 0.045),
     handMaterial
   );
-  heel.position.y = -0.115;
+  heel.position.y = -0.125;
   hand.add(heel);
 
   // Three fingers and a thumb. Splayed slightly, unequal in length, and a
   // little thicker than four would be so the hand stays chunky.
   const fingers = [
-    { x: -0.052, length: 0.085, radius: 0.034, splay: 0.2 },  // index
-    { x: 0.002, length: 0.094, radius: 0.036, splay: 0.02 },  // middle
-    { x: 0.056, length: 0.08, radius: 0.033, splay: -0.19 },  // outer
+    { x: -0.055, length: 0.052, radius: 0.033, splay: 0.14 },  // index
+    { x: 0.0, length: 0.058, radius: 0.034, splay: 0.0 },      // middle
+    { x: 0.055, length: 0.05, radius: 0.032, splay: -0.14 },   // outer
   ];
 
   for (const spec of fingers) {
-    const finger = makeFinger(spec.length, spec.radius, 0.42);
-    finger.position.set(side * spec.x, 0.085, 0);
+    const finger = makeFinger(spec.length, spec.radius, 0.3);
+    finger.position.set(side * spec.x, 0.095, 0);
     finger.rotation.z = side * spec.splay;
     hand.add(finger);
   }
 
   // Thumb, off the side of the palm and rotated across it.
-  const thumb = makeFinger(0.082, 0.036, 0.4);
-  thumb.position.set(side * 0.086, -0.055, 0.016);
-  thumb.rotation.z = side * 1.2;
-  thumb.rotation.x = -0.4;
+  const thumb = makeFinger(0.055, 0.034, 0.3);
+  thumb.position.set(side * 0.092, -0.048, 0.008);
+  thumb.rotation.z = side * 1.25;
+  thumb.rotation.x = -0.2;
   hand.add(thumb);
 
   const group = new THREE.Group();
   group.add(hand);
 
   // Cock the wrists so the hands frame the view rather than lying flat on.
-  group.rotation.z = side * 0.34;
-  group.rotation.x = -0.22;
-  group.rotation.y = side * -0.18;
+  // Tipped well forward so the backs of the hands face you and the fingers
+  // point away, rather than presenting an open palm like a wave.
+  group.rotation.x = -1.05;
+  group.rotation.z = side * 0.3;
+  group.rotation.y = side * -0.12;
 
   return group;
 }

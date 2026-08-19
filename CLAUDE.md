@@ -205,6 +205,21 @@ in step at any framerate and stops dead when you do. `main.js` measures that
 distance *after* any ride on the train, so standing in a moving carriage does
 not make you march on the spot.
 
+## The sky dome
+
+The dome is re-centred on the camera every frame, and its gradient runs off
+**object space** (`normalize(position)` in the vertex shader) rather than world
+position, so moving it does not skew the gradient.
+
+This is not cosmetic. A fixed dome of radius R is up to R + (how far you have
+walked) away from you, and once that exceeds the camera's far plane the sky is
+**clipped to the clear colour** - which reads as an enormous black hole sitting
+in the middle of the screen and tracking wherever you look. With stops spread
+over 1.96km that happened as soon as you left the first station.
+
+Keep `camera.far` comfortably above the dome radius as well, as a second line
+of defence.
+
 ## Pointer lock
 
 `controls.lock()` fails **asynchronously** — there is no exception to catch.

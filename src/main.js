@@ -22,7 +22,7 @@ const camera = new THREE.PerspectiveCamera(
   70,
   window.innerWidth / window.innerHeight,
   0.1,
-  3000
+  6000
 );
 
 const { scene, heightAt, train, crossings, colliders } = buildWorld();
@@ -77,6 +77,8 @@ if (import.meta.env.DEV) {
   window.game = { scene, camera, renderer, player, train, crossings, colliders, body };
 }
 
+const sky = scene.getObjectByName('sky');
+
 const clock = new THREE.Clock();
 let wasAboard = false;
 
@@ -112,6 +114,11 @@ renderer.setAnimationLoop(() => {
   }
 
   status.textContent = train.status();
+
+  // Keep the sky dome centred on the player: a fixed dome eventually falls
+  // outside the far plane and gets clipped to the clear colour, which reads as
+  // a huge black hole tracking the middle of the screen.
+  sky.position.copy(camera.position);
 
   renderer.render(scene, camera);
 });

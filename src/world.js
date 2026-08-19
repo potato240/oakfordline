@@ -26,25 +26,27 @@ function createSky() {
       topColor: { value: new THREE.Color(SKY_TOP) },
       horizonColor: { value: new THREE.Color(SKY_HORIZON) },
     },
+    // The gradient runs off the dome's own geometry, not world position, so
+    // the dome can be re-centred on the camera each frame without skewing it.
     vertexShader: `
-      varying vec3 vWorldPosition;
+      varying vec3 vDirection;
       void main() {
-        vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
+        vDirection = normalize(position);
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
     fragmentShader: `
       uniform vec3 topColor;
       uniform vec3 horizonColor;
-      varying vec3 vWorldPosition;
+      varying vec3 vDirection;
       void main() {
-        float h = normalize(vWorldPosition).y;
+        float h = vDirection.y;
         gl_FragColor = vec4(mix(horizonColor, topColor, pow(max(h, 0.0), 0.7)), 1.0);
       }
     `,
   });
 
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(3600, 32, 16), material);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(2400, 48, 24), material);
   sky.name = 'sky';
   return sky;
 }
