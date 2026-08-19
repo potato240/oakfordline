@@ -18,7 +18,11 @@ Early scaffold. What exists today:
   at standard gauge.
 - A working two-car train, red and cream, with a full interior — floor,
   ceiling with a lit strip, lined walls, seating bays, grab poles — that you
-  can walk into and ride.
+  can walk into and ride. It is **double-ended**: a cab at each extremity, so
+  it never turns; marker lights show white at the leading end, red at the
+  trailing one, and swap over at each terminus.
+- Two level crossings on the line, with lowering booms, alternately flashing
+  red lamps, and a bell synthesised at runtime.
 - Sliding doors on the platform side that part and close on a timer.
 - A line: the train shuttles between **Oakford** and **Bramley Halt**, 280m
   apart, accelerating to 18 m/s and braking to a stand at each platform.
@@ -50,6 +54,8 @@ the train's walls, the doors when shut, and the canopy columns.
 | `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
+| `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
+| `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
 | `src/player.js`  | First-person controller: input, acceleration, damping. |
 | `src/style.css`  | Overlay and canvas styling.                            |
 | `vite.config.js` | Dev server on `0.0.0.0:5173`, build to `dist/`.        |
@@ -73,7 +79,7 @@ npm run build
   gauge - belongs in `src/layout.js`, not re-derived locally. The train's
   wheels sit on `RAIL_TOP_Y` by construction.
 - Repeated props (sleepers, trees) use `InstancedMesh`; the whole scene is
-  about 140 draw calls and 21k triangles, so keep new props instanced.
+  about 410 draw calls and 33k triangles, so keep new props instanced.
 - Movement is framerate independent — velocity integrates against `delta` and
   damps exponentially. Keep new movement code on the same footing rather than
   applying per-frame constants.
@@ -110,6 +116,32 @@ drops the player to ground level mid-stride.
 Doors are two leaves per opening, positioned from `doorOpen` (0 shut, 1 open)
 in `applyDoors()`. They are visual only — nothing blocks a player walking
 through a shut door yet.
+
+## Level crossings and sound
+
+`Crossing` (in `src/crossing.js`) protects a point on the line. Each frame it
+takes the train and the player position and decides whether to warn:
+
+```
+approaching && distance < 150m   ->  warn
+distance < 34m                   ->  stay down until well clear
+```
+
+Booms take 3.2s to travel, which is why the warning starts 150m out — the
+barriers are fully down long before the train arrives. Booms pivot about the
+post: the geometry is translated so its origin sits at the pivot end, then the
+whole pivot rotates 90 degrees.
+
+**All audio is synthesised — there are no sound files in this repo.**
+`src/audio.js` builds the bell from four *inharmonic* partials
+(1 : 2.76 : 5.4 : 8.93) over a fast exponential decay. Those ratios are what
+make it read as struck metal; a plain sine at the same pitch just sounds like
+a beep.
+
+Browsers refuse to start an `AudioContext` without a user gesture, so
+`startAudio()` is called from the start button's click handler. Calling it from
+anywhere else leaves the context `suspended` and the game silent. Bell volume
+falls off with the player's distance from the crossing.
 
 ## Pointer lock
 

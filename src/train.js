@@ -256,7 +256,7 @@ function addRunningGear(car, wheels) {
   car.add(skirt);
 }
 
-function createCarriage({ cab = false }, doorLeaves, wheels) {
+function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
   const car = new THREE.Group();
 
   addRunningGear(car, wheels);
@@ -276,12 +276,16 @@ function createCarriage({ cab = false }, doorLeaves, wheels) {
   roof.castShadow = true;
   car.add(roof);
 
-  if (cab) {
+  // A driving cab at one end. The unit is double-ended, so this is built
+  // twice - once facing +Z, once facing -Z - and never needs turning.
+  if (cabEnd !== 0) {
+    const endZ = cabEnd * HALF_LENGTH;
+
     const front = new THREE.Mesh(
       new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, 0.3),
       materials.bodyLower
     );
-    front.position.set(0, FLOOR_Y + CAR_HEIGHT / 2, HALF_LENGTH + 0.15);
+    front.position.set(0, FLOOR_Y + CAR_HEIGHT / 2, endZ + cabEnd * 0.15);
     front.castShadow = true;
     car.add(front);
 
@@ -289,19 +293,33 @@ function createCarriage({ cab = false }, doorLeaves, wheels) {
       new THREE.BoxGeometry(CAR_WIDTH - 0.3, 1.0, 0.12),
       materials.glass
     );
-    screen.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, HALF_LENGTH + 0.28);
+    screen.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.28);
     car.add(screen);
 
-    const headlight = new THREE.MeshStandardMaterial({
-      color: 0xfff6de,
-      emissive: 0xffe9b0,
-      emissiveIntensity: 1.4,
-    });
+    // Driving desk, visible through the windscreen.
+    const desk = new THREE.Mesh(
+      new THREE.BoxGeometry(CAR_WIDTH - 0.9, 0.12, 0.6),
+      materials.under
+    );
+    desk.position.set(0, FLOOR_Y + 0.95, endZ - cabEnd * 0.5);
+    car.add(desk);
+
+    // Marker lamps get their own material per cab so the leading end can show
+    // white while the trailing end shows red.
+    const lamps = [];
     for (const side of [-1, 1]) {
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.1), headlight);
-      lamp.position.set(side * 0.85, FLOOR_Y + 0.45, HALF_LENGTH + 0.32);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xfff6de,
+        emissive: 0xffe9b0,
+        emissiveIntensity: 1.4,
+      });
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 0.1), material);
+      lamp.position.set(side * 0.85, FLOOR_Y + 0.45, endZ + cabEnd * 0.32);
       car.add(lamp);
+      lamps.push(lamp);
     }
+
+    cabs.push({ end: cabEnd, lamps });
   }
 
   return car;
@@ -314,12 +332,15 @@ export class Train {
 
     this.doorLeaves = [];
     this.wheels = [];
+    this.cabs = [];
 
-    const front = createCarriage({ cab: true }, this.doorLeaves, this.wheels);
+    // Double-ended unit: a cab at each extremity of the formation, so it can
+    // run either way down the line without ever being turned.
+    const front = createCarriage({ cabEnd: 1 }, this.doorLeaves, this.wheels, this.cabs);
     front.position.z = (CAR_LENGTH + CAR_GAP) / 2;
     this.group.add(front);
 
-    const rear = createCarriage({}, this.doorLeaves, this.wheels);
+    const rear = createCarriage({ cabEnd: -1 }, this.doorLeaves, this.wheels, this.cabs);
     rear.position.z = -(CAR_LENGTH + CAR_GAP) / 2;
     this.group.add(rear);
 
@@ -331,7 +352,25 @@ export class Train {
     this.timer = DWELL_SECONDS;
 
     this.group.position.z = STATIONS[this.stationIndex].z;
+
+    // Which way the unit is currently working: +1 towards +Z, -1 towards -Z.
+    this.direction = Math.sign(STATIONS[this.targetIndex].z - this.group.position.z) || -1;
+
     this.applyDoors();
+    this.applyLights();
+  }
+
+  // White at the leading cab, red at the trailing one. Because the unit is
+  // double-ended this swaps over at each terminus rather than turning.
+  applyLights() {
+    for (const cab of this.cabs) {
+      const leading = cab.end === this.direction;
+      for (const lamp of cab.lamps) {
+        lamp.material.color.setHex(leading ? 0xfff6de : 0x6b1414);
+        lamp.material.emissive.setHex(leading ? 0xffe9b0 : 0xd11a1a);
+        lamp.material.emissiveIntensity = leading ? 1.4 : 1.1;
+      }
+    }
   }
 
   get currentStation() {
@@ -407,6 +446,13 @@ export class Train {
     }
 
     this.applyDoors();
+
+    // Swap the marker lights over when the unit changes ends at a terminus.
+    const heading = Math.sign(STATIONS[this.targetIndex].z - this.group.position.z);
+    if (heading !== 0 && heading !== this.direction) {
+      this.direction = heading;
+      this.applyLights();
+    }
 
     // Roll the wheels at whatever speed we are actually doing.
     if (this.speed > 0) {

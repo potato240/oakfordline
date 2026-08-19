@@ -3,6 +3,7 @@ import { createTrack } from './track.js';
 import { createStation } from './station.js';
 import { Train } from './train.js';
 import { createScenery } from './scenery.js';
+import { Crossing } from './crossing.js';
 import {
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
@@ -102,6 +103,10 @@ export function buildWorld() {
   const train = new Train();
   scene.add(train.group);
 
+  // Level crossings out on the line between the two stations.
+  const crossings = [new Crossing(-72), new Crossing(-196)];
+  for (const crossing of crossings) scene.add(crossing.group);
+
   // Standing surface under the player. The train wins over the platform, so
   // stepping through the doorway puts you on the saloon floor.
   function heightAt(x, z) {
@@ -110,5 +115,5 @@ export function buildWorld() {
     return 0;
   }
 
-  return { scene, heightAt, train };
+  return { scene, heightAt, train, crossings };
 }

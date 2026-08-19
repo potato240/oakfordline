@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import { buildWorld } from './world.js';
 import { Player } from './player.js';
+import { startAudio } from './audio.js';
 
 const canvas = document.getElementById('scene');
 const overlay = document.getElementById('overlay');
@@ -23,7 +24,7 @@ const camera = new THREE.PerspectiveCamera(
   3000
 );
 
-const { scene, heightAt, train } = buildWorld();
+const { scene, heightAt, train, crossings } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt);
 scene.add(player.object);
 
@@ -32,12 +33,17 @@ scene.add(player.object);
 camera.rotation.y = 0.35;
 
 function enterGame() {
+  // Audio can only start from a user gesture, which this is downstream of.
+  startAudio();
   overlay.classList.add('hidden');
   crosshair.classList.add('visible');
   status.classList.add('visible');
 }
 
-startButton.addEventListener('click', () => player.lock());
+startButton.addEventListener('click', () => {
+  startAudio();
+  player.lock();
+});
 player.controls.addEventListener('lock', enterGame);
 
 player.controls.addEventListener('unlock', () => {
@@ -63,7 +69,7 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player, train };
+  window.game = { scene, camera, renderer, player, train, crossings };
 }
 
 const clock = new THREE.Clock();
@@ -82,6 +88,8 @@ renderer.setAnimationLoop(() => {
   if (aboard) position.z += travelled;
 
   player.update(delta);
+
+  for (const crossing of crossings) crossing.update(delta, train, position);
 
   if (aboard !== wasAboard) {
     hint.textContent = aboard ? 'On board' : 'On the platform';
