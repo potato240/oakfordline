@@ -306,8 +306,8 @@ function addSideWall(car, side, doorLeaves) {
   const x = side * (CAR_WIDTH / 2 - WALL_THICKNESS / 2);
   const wallHeight = CAR_HEIGHT;
 
-  // Doors on both sides now, so both get the door-aware segmentation.
-  const segments = wallSegments();
+  // The platform side is +X and is the only side with doorways.
+  const segments = side > 0 ? wallSegments() : [{ centre: 0, length: CAR_LENGTH }];
 
   for (const segment of segments) {
     const segStart = segment.centre - segment.length / 2;
@@ -439,7 +439,7 @@ function addSideWall(car, side, doorLeaves) {
     }
   }
 
-  {
+  if (side > 0) {
     // Header above each doorway. The wall opening runs the full height of the
     // car but the leaves only reach DOOR_HEIGHT, so without this you can see
     // daylight over the top of the doors.
@@ -1111,30 +1111,32 @@ export class Train {
     const inner = outer - WALL_THICKNESS - 0.08;
 
     for (const carCentre of [(CAR_LENGTH + CAR_GAP) / 2, -(CAR_LENGTH + CAR_GAP) / 2]) {
-      // Doors on both sides now, so both get the same door-aware wall
-      // segmentation and door-opening colliders, mirrored left/right.
-      for (const side of [-1, 1]) {
-        const minX = side > 0 ? inner : -outer;
-        const maxX = side > 0 ? outer : -inner;
+      // Blind side: one unbroken wall.
+      boxes.push({
+        minX: -outer, maxX: -inner,
+        minZ: carCentre - HALF_LENGTH, maxZ: carCentre + HALF_LENGTH,
+        minY: FLOOR_Y, maxY: top, offset,
+      });
 
-        for (const segment of wallSegments()) {
-          boxes.push({
-            minX, maxX,
-            minZ: carCentre + segment.centre - segment.length / 2,
-            maxZ: carCentre + segment.centre + segment.length / 2,
-            minY: FLOOR_Y, maxY: top, offset,
-          });
-        }
+      // Platform side: the panels between the door openings.
+      for (const segment of wallSegments()) {
+        boxes.push({
+          minX: inner, maxX: outer,
+          minZ: carCentre + segment.centre - segment.length / 2,
+          maxZ: carCentre + segment.centre + segment.length / 2,
+          minY: FLOOR_Y, maxY: top, offset,
+        });
+      }
 
-        for (const doorCentre of DOOR_CENTRES) {
-          boxes.push({
-            minX, maxX,
-            minZ: carCentre + doorCentre - DOOR_HALF_WIDTH,
-            maxZ: carCentre + doorCentre + DOOR_HALF_WIDTH,
-            minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset,
-            active: () => this.doorOpen < 0.55,
-          });
-        }
+      // The openings themselves, solid only while the doors are shut.
+      for (const doorCentre of DOOR_CENTRES) {
+        boxes.push({
+          minX: inner, maxX: outer,
+          minZ: carCentre + doorCentre - DOOR_HALF_WIDTH,
+          maxZ: carCentre + doorCentre + DOOR_HALF_WIDTH,
+          minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset,
+          active: () => this.doorOpen < 0.55,
+        });
       }
 
       // Both ends of each car. The two inner ends face each other across the

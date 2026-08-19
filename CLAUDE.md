@@ -27,8 +27,8 @@ Early scaffold. What exists today:
   trailing one, and swap over at each terminus.
 - Seven level crossings on the line, with lowering booms, alternately flashing
   red lamps, and a bell synthesised at runtime.
-- Five pairs of sliding doors on **both** sides of each car, metro style,
-  parting and closing on a timer together.
+- Three pairs of sliding doors on the platform side of each car, metro
+  style, parting and closing on a timer.
 - An eight-stop line, each stop 280m apart over 1.96km: **Oakford**, **Bramley
   Halt**, **Wexley**, **Marsden Cross**, **Kingsford**, **Ashcombe**,
   **Thornleigh**, **Portmead**. The train calls at each in turn, reverses at
@@ -68,54 +68,6 @@ rather than falling onto them.
 | `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
-
-## Window openings are real, not glass boxes on a solid sheet
-
-The bodyside is built as three vertical bands (`extrudeBand()` in
-`src/train.js`), not one solid extrusion:
-
-```
-upper band   (WINDOW_HEAD_Y -> cantrail)   solid, full pier length
-window band  (WINDOW_SILL_Y -> WINDOW_HEAD_Y)  mullions + real gaps
-lower band   (solebar -> WINDOW_SILL_Y)    solid, full pier length
-```
-
-The middle band is NOT one solid piece with glass placed against it. It is
-solid mullions with true gaps between them, and the glass sits in the gap.
-This matters: when the bodyside was first switched to a curved tumblehome
-profile, it was built as a single watertight extrude with no opening for a
-window at all - the glass panes were still being positioned as before, but
-now they were hidden inside/behind solid silver, which is why the windows
-appeared to vanish rather than merely change style. Verified by raycasting
-from outside the car: a ray at a window's centre hits glass first with
-interior geometry behind it; the same ray shifted to the mullion between two
-windows hits solid silver.
-
-If you change `WINDOW_SILL_Y` / `WINDOW_HEAD_Y` or the window count, the
-mullion math derives from the same opening list used to place the glass, so
-they cannot drift out of sync with each other - but they can still drift out
-of sync with the *header* geometry above the doorways, which is untouched by
-this and still assumes a flat wall thickness at a fixed x.
-
-## Doors on both sides
-
-`addSideWall()` used to gate the whole door/header/pillar block on `side > 0`
-and give the -X side one unbroken wall - there was only ever a doorway on the
-platform side. Both sides now build the same door-aware `wallSegments()` and
-the same header/pillar/leaf block, mirrored by `side`. Two offsets that were
-hardcoded assuming +X (`x + 0.03` for the leaf and its window) had to become
-`x + side * 0.03`, or the -X doors would sit pushed into the car instead of
-proud of the correct exterior face.
-
-`Train.colliders()` had the same asymmetry - the blind side was a single solid
-box with no door gap. It now loops over both sides building the same segmented
-walls and door-active openings, so collision matches what you see: walk up to
-a shut door on either side and you are blocked; open, you pass through.
-
-One consequence worth knowing: at a station, both sides' doors at the same Z
-open together, so it is possible to walk in one door and straight out the
-other - there being no platform on the -X side, doing so drops you onto the
-ballast at ground level rather than another platform.
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
@@ -126,6 +78,7 @@ ballast at ground level rather than another platform.
 | `vite.config.js` | Dev server on `0.0.0.0:5173`, build to `dist/`.        |
 | `Dockerfile`     | Two-stage production build. See Deployment.            |
 | `nginx.conf`     | Static serving config used by the runtime image.       |
+
 
 ## Commands
 
@@ -191,6 +144,34 @@ drops the player to ground level mid-stride.
 Doors are two leaves per opening, positioned from `doorOpen` (0 shut, 1 open)
 in `applyDoors()`. They are visual only — nothing blocks a player walking
 through a shut door yet.
+
+## Window openings are real, not glass boxes on a solid sheet
+
+The bodyside is built as three vertical bands (`extrudeBand()` in
+`src/train.js`), not one solid extrusion:
+
+```
+upper band   (WINDOW_HEAD_Y -> cantrail)   solid, full pier length
+window band  (WINDOW_SILL_Y -> WINDOW_HEAD_Y)  mullions + real gaps
+lower band   (solebar -> WINDOW_SILL_Y)    solid, full pier length
+```
+
+The middle band is NOT one solid piece with glass placed against it. It is
+solid mullions with true gaps between them, and the glass sits in the gap.
+This matters: when the bodyside was first switched to a curved tumblehome
+profile, it was built as a single watertight extrude with no opening for a
+window at all - the glass panes were still being positioned as before, but
+now they were hidden inside/behind solid silver, which is why the windows
+appeared to vanish rather than merely change style. Verified by raycasting
+from outside the car: a ray at a window's centre hits glass first with
+interior geometry behind it; the same ray shifted to the mullion between two
+windows hits solid silver.
+
+If you change `WINDOW_SILL_Y` / `WINDOW_HEAD_Y` or the window count, the
+mullion math derives from the same opening list used to place the glass, so
+they cannot drift out of sync with each other - but they can still drift out
+of sync with the *header* geometry above the doorways, which is untouched by
+this and still assumes a flat wall thickness at a fixed x.
 
 ## Level crossings and sound
 
