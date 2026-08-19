@@ -27,8 +27,11 @@ Early scaffold. What exists today:
   trailing one, and swap over at each terminus.
 - Seven level crossings on the line, with lowering booms, alternately flashing
   red lamps, and a bell synthesised at runtime.
-- Three pairs of sliding doors on the platform side of each car, metro
-  style, parting and closing on a timer.
+- Three pairs of sliding doors on **both** sides of each car. Only the side
+  matching the current station's platform actually opens - which side that
+  is comes from `STATIONS[].platformSide`, not a fixed side, so a future
+  station can have its platform on the other side and the correct doors
+  will open there.
 - An eight-stop line, each stop 280m apart over 1.96km: **Oakford**, **Bramley
   Halt**, **Wexley**, **Marsden Cross**, **Kingsford**, **Ashcombe**,
   **Thornleigh**, **Portmead**. The train calls at each in turn, reverses at
@@ -172,6 +175,31 @@ mullion math derives from the same opening list used to place the glass, so
 they cannot drift out of sync with each other - but they can still drift out
 of sync with the *header* geometry above the doorways, which is untouched by
 this and still assumes a flat wall thickness at a fixed x.
+
+## Doors on both sides, opened per-station
+
+Both sides of the car have real, working door leaves - `addSideWall()` builds
+and registers both, tagged with `side`. Only one side actually moves at any
+given stop:
+
+```js
+// applyDoors() - Train
+const platformSide = this.currentStation.platformSide;
+const travel = leaf.side === platformSide ? this.doorOpen * maxTravel : 0;
+```
+
+The other side's leaves are driven to zero travel every frame regardless of
+`doorOpen` - they are never "permanently shut" in code, they are just always
+on the wrong side for wherever the train currently is. `Train.colliders()`
+mirrors the exact same condition (`this.doorOpen < 0.55 || currentStation.platformSide !== side`)
+so collision can never disagree with what the doors look like.
+
+`STATIONS[].platformSide` (`layout.js`) is `1` or `-1` per stop. All current
+stations are `1`. Setting one to `-1` correctly opens the other side's doors -
+verified by flipping it at runtime and confirming boarding swaps sides - but
+`station.js` still always builds the platform deck on +X, so an actual `-1`
+station would open the right doors onto empty ballast until the platform
+geometry is mirrored too. That mirroring is separate, not-yet-done work.
 
 ## Level crossings and sound
 

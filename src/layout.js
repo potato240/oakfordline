@@ -38,7 +38,9 @@ export const AXLE_Y = RAIL_TOP_Y + WHEEL_RADIUS;
 export const FLOOR_Y = AXLE_Y + 0.22;
 export const INTERIOR_HEIGHT = 2.25;
 
-// Doorways sit on the platform side (+X). Each is two leaves that part.
+// Doorway positions along the car, on both sides. Both sides are built and
+// can open; which one actually does at a given stop is decided per-station
+// by STATIONS[].platformSide, in Train.applyDoors() (train.js).
 export const DOOR_CENTRES = [-6, 0, 6];
 export const DOOR_HALF_WIDTH = 0.65;
 export const DOOR_HEIGHT = 1.95;
@@ -47,13 +49,19 @@ export const DOOR_HEIGHT = 1.95;
 
 // The route runs along Z. The train works down the line calling at each stop
 // in turn, then reverses at the terminus and works back.
+// platformSide: which side of the train the platform is on at this stop
+// (+1 or -1). The train opens doors on whichever side matches the station it
+// has actually arrived at, rather than a fixed side - so a future station can
+// set -1 and the correct doors will open there. Station geometry in
+// station.js does not yet mirror for -1; that is separate work from the door
+// logic and would need doing before any station actually uses it.
 export const STATIONS = [
-  { name: 'Oakford', z: 0 },
-  { name: 'Bramley Halt', z: -280 },
-  { name: 'Wexley', z: -560 },
-  { name: 'Marsden Cross', z: -840 },
-  { name: 'Kingsford', z: -1120 },
-  { name: 'Ashcombe', z: -1400 },
-  { name: 'Thornleigh', z: -1680 },
-  { name: 'Portmead', z: -1960 },
+  { name: 'Oakford', z: 0, platformSide: 1 },
+  { name: 'Bramley Halt', z: -280, platformSide: 1 },
+  { name: 'Wexley', z: -560, platformSide: 1 },
+  { name: 'Marsden Cross', z: -840, platformSide: 1 },
+  { name: 'Kingsford', z: -1120, platformSide: 1 },
+  { name: 'Ashcombe', z: -1400, platformSide: 1 },
+  { name: 'Thornleigh', z: -1680, platformSide: 1 },
+  { name: 'Portmead', z: -1960, platformSide: 1 },
 ];

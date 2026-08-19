@@ -45,10 +45,16 @@ const materials = {
   cabYellow: new THREE.MeshStandardMaterial({ color: 0xf6c81b, roughness: 0.4 }),
   cabBlack: new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.5 }),
   roof: new THREE.MeshStandardMaterial({ color: 0xb4b4b0, roughness: 0.8 }),
+  // Genuinely see-through: opaque "glass" was the actual bug - a solid dark
+  // panel with no transparency at all, so interiors read as sealed black
+  // boxes both from outside and (worse) from inside looking out.
   glass: new THREE.MeshStandardMaterial({
-    color: 0x11161a,
-    roughness: 0.1,
-    metalness: 0.5,
+    color: 0x1c2730,
+    roughness: 0.08,
+    metalness: 0.35,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
   }),
   under: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.9 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.5, metalness: 0.6 }),
@@ -306,8 +312,10 @@ function addSideWall(car, side, doorLeaves) {
   const x = side * (CAR_WIDTH / 2 - WALL_THICKNESS / 2);
   const wallHeight = CAR_HEIGHT;
 
-  // The platform side is +X and is the only side with doorways.
-  const segments = side > 0 ? wallSegments() : [{ centre: 0, length: CAR_LENGTH }];
+  // Doorways sit on both sides of the car - only the platform side (+X)
+  // ever opens, but the blind side still has real door leaves and door-
+  // shaped openings in the wall, just permanently shut.
+  const segments = wallSegments();
 
   for (const segment of segments) {
     const segStart = segment.centre - segment.length / 2;
@@ -439,7 +447,7 @@ function addSideWall(car, side, doorLeaves) {
     }
   }
 
-  if (side > 0) {
+  {
     // Header above each doorway. The wall opening runs the full height of the
     // car but the leaves only reach DOOR_HEIGHT, so without this you can see
     // daylight over the top of the doors.
@@ -518,7 +526,10 @@ function addSideWall(car, side, doorLeaves) {
         window.position.set(x + side * 0.03, FLOOR_Y + 1.35, closedZ);
         car.add(window);
 
-        doorLeaves.push({ leaf, window, closedZ, direction });
+        // Both sides register - which one actually moves at a given stop
+        // is decided in applyDoors() by matching `side` against the current
+        // station's platformSide, not by which side got built here.
+        doorLeaves.push({ leaf, window, closedZ, direction, side });
       }
     }
   }
@@ -997,8 +1008,14 @@ export class Train {
   }
 
   applyDoors() {
-    const travel = this.doorOpen * (DOOR_HALF_WIDTH * 0.96);
-    for (const { leaf, window, closedZ, direction } of this.doorLeaves) {
+    // Only the side matching the current station's platform actually moves.
+    // The other side's leaves are driven towards 0 travel regardless of
+    // doorOpen, so they stay shut even while the platform-side doors open.
+    const platformSide = this.currentStation.platformSide;
+    const maxTravel = DOOR_HALF_WIDTH * 0.96;
+
+    for (const { leaf, window, closedZ, direction, side } of this.doorLeaves) {
+      const travel = side === platformSide ? this.doorOpen * maxTravel : 0;
       leaf.position.z = closedZ + direction * travel;
       window.position.z = leaf.position.z;
     }
@@ -1111,32 +1128,33 @@ export class Train {
     const inner = outer - WALL_THICKNESS - 0.08;
 
     for (const carCentre of [(CAR_LENGTH + CAR_GAP) / 2, -(CAR_LENGTH + CAR_GAP) / 2]) {
-      // Blind side: one unbroken wall.
-      boxes.push({
-        minX: -outer, maxX: -inner,
-        minZ: carCentre - HALF_LENGTH, maxZ: carCentre + HALF_LENGTH,
-        minY: FLOOR_Y, maxY: top, offset,
-      });
-
-      // Platform side: the panels between the door openings.
+      // Wall panels between the door positions, on both sides - both have
+      // real door-shaped openings; which one is currently passable is
+      // decided below by matching the current station's platform side.
       for (const segment of wallSegments()) {
-        boxes.push({
-          minX: inner, maxX: outer,
-          minZ: carCentre + segment.centre - segment.length / 2,
-          maxZ: carCentre + segment.centre + segment.length / 2,
-          minY: FLOOR_Y, maxY: top, offset,
-        });
+        for (const [minX, maxX] of [[inner, outer], [-outer, -inner]]) {
+          boxes.push({
+            minX, maxX,
+            minZ: carCentre + segment.centre - segment.length / 2,
+            maxZ: carCentre + segment.centre + segment.length / 2,
+            minY: FLOOR_Y, maxY: top, offset,
+          });
+        }
       }
 
-      // The openings themselves, solid only while the doors are shut.
+      // Each side's opening is solid unless the doors are open AND this is
+      // the side matching the current station's platform - mirrors
+      // applyDoors(), so collision can never disagree with what you see.
       for (const doorCentre of DOOR_CENTRES) {
-        boxes.push({
-          minX: inner, maxX: outer,
-          minZ: carCentre + doorCentre - DOOR_HALF_WIDTH,
-          maxZ: carCentre + doorCentre + DOOR_HALF_WIDTH,
-          minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset,
-          active: () => this.doorOpen < 0.55,
-        });
+        for (const [side, minX, maxX] of [[1, inner, outer], [-1, -outer, -inner]]) {
+          boxes.push({
+            minX, maxX,
+            minZ: carCentre + doorCentre - DOOR_HALF_WIDTH,
+            maxZ: carCentre + doorCentre + DOOR_HALF_WIDTH,
+            minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset,
+            active: () => this.doorOpen < 0.55 || this.currentStation.platformSide !== side,
+          });
+        }
       }
 
       // Both ends of each car. The two inner ends face each other across the
