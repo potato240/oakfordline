@@ -23,19 +23,25 @@ const DWELL_SECONDS = 14;
 const DOOR_SECONDS = 2.2;
 
 const HALF_LENGTH = CAR_LENGTH / 2;
+
+// Waist stripe, sitting just under the window line.
+const STRIPE_HEIGHT = 0.17;
+const STRIPE_Y = FLOOR_Y + CAR_HEIGHT * 0.46;
 const INNER_HALF_WIDTH = CAR_WIDTH / 2 - WALL_THICKNESS;
 const CEILING_Y = FLOOR_Y + INTERIOR_HEIGHT;
 
+// KCR "Yellowhead" livery: off-white bodyside with a red waist stripe, and a
+// yellow cab face - which is what the nickname refers to.
 const materials = {
-  bodyLower: new THREE.MeshStandardMaterial({ color: 0x8c2b2b, roughness: 0.45, metalness: 0.15 }),
-  bodyUpper: new THREE.MeshStandardMaterial({ color: 0xe8e0cf, roughness: 0.5 }),
-  roof: new THREE.MeshStandardMaterial({ color: 0x4a4a4d, roughness: 0.7 }),
+  body: new THREE.MeshStandardMaterial({ color: 0xf2efe7, roughness: 0.42, metalness: 0.1 }),
+  stripe: new THREE.MeshStandardMaterial({ color: 0xcf2a35, roughness: 0.4 }),
+  cabYellow: new THREE.MeshStandardMaterial({ color: 0xf6c81b, roughness: 0.4 }),
+  cabBlack: new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.5 }),
+  roof: new THREE.MeshStandardMaterial({ color: 0xb4b4b0, roughness: 0.8 }),
   glass: new THREE.MeshStandardMaterial({
-    color: 0x9fc4d8,
-    roughness: 0.1,
-    metalness: 0.3,
-    transparent: true,
-    opacity: 0.35,
+    color: 0x25333c,
+    roughness: 0.12,
+    metalness: 0.45,
   }),
   under: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.9 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.5, metalness: 0.6 }),
@@ -45,7 +51,7 @@ const materials = {
   seat: new THREE.MeshStandardMaterial({ color: 0x2f4a7a, roughness: 0.9 }),
   seatBack: new THREE.MeshStandardMaterial({ color: 0x27406b, roughness: 0.9 }),
   pole: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.8 }),
-  door: new THREE.MeshStandardMaterial({ color: 0x6f2222, roughness: 0.5 }),
+  door: new THREE.MeshStandardMaterial({ color: 0xe4e1d7, roughness: 0.45 }),
   strip: new THREE.MeshStandardMaterial({
     color: 0xfff8e6,
     emissive: 0xfff2cc,
@@ -79,21 +85,21 @@ function addSideWall(car, side, doorLeaves) {
   const segments = side > 0 ? wallSegments() : [{ centre: 0, length: CAR_LENGTH }];
 
   for (const segment of segments) {
-    const lower = new THREE.Mesh(
-      new THREE.BoxGeometry(WALL_THICKNESS, wallHeight * 0.55, segment.length),
-      materials.bodyLower
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(WALL_THICKNESS, wallHeight, segment.length),
+      materials.body
     );
-    lower.position.set(x, FLOOR_Y + (wallHeight * 0.55) / 2, segment.centre);
-    lower.castShadow = true;
-    car.add(lower);
+    panel.position.set(x, FLOOR_Y + wallHeight / 2, segment.centre);
+    panel.castShadow = true;
+    car.add(panel);
 
-    const upper = new THREE.Mesh(
-      new THREE.BoxGeometry(WALL_THICKNESS, wallHeight * 0.45, segment.length),
-      materials.bodyUpper
+    // Red waist stripe, proud of the bodyside so it catches the light.
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(WALL_THICKNESS + 0.03, STRIPE_HEIGHT, segment.length),
+      materials.stripe
     );
-    upper.position.set(x, FLOOR_Y + wallHeight * 0.55 + (wallHeight * 0.45) / 2, segment.centre);
-    upper.castShadow = true;
-    car.add(upper);
+    stripe.position.set(x, STRIPE_Y, segment.centre);
+    car.add(stripe);
 
     // Inner face, so the interior does not read as raw livery colour.
     const lining = new THREE.Mesh(
@@ -131,6 +137,15 @@ function addSideWall(car, side, doorLeaves) {
         leaf.position.set(x + 0.03, FLOOR_Y + DOOR_HEIGHT / 2, closedZ);
         leaf.castShadow = true;
         car.add(leaf);
+
+        // Stripe segment parented to the leaf, so it slides with the door
+        // instead of hanging in the opening.
+        const leafStripe = new THREE.Mesh(
+          new THREE.BoxGeometry(WALL_THICKNESS * 0.9, STRIPE_HEIGHT, DOOR_HALF_WIDTH),
+          materials.stripe
+        );
+        leafStripe.position.set(0.02, STRIPE_Y - (FLOOR_Y + DOOR_HEIGHT / 2), 0);
+        leaf.add(leafStripe);
 
         const window = new THREE.Mesh(
           new THREE.BoxGeometry(WALL_THICKNESS * 0.9, 0.7, DOOR_HALF_WIDTH * 0.6),
@@ -281,20 +296,64 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
   if (cabEnd !== 0) {
     const endZ = cabEnd * HALF_LENGTH;
 
+    // The yellow cab face the "Yellowhead" nickname comes from.
     const front = new THREE.Mesh(
       new THREE.BoxGeometry(CAR_WIDTH, CAR_HEIGHT, 0.3),
-      materials.bodyLower
+      materials.cabYellow
     );
     front.position.set(0, FLOOR_Y + CAR_HEIGHT / 2, endZ + cabEnd * 0.15);
     front.castShadow = true;
     car.add(front);
 
+    // Yellow wraps a short way down both bodysides at the cab end.
+    for (const side of [-1, 1]) {
+      const wrap = new THREE.Mesh(
+        new THREE.BoxGeometry(WALL_THICKNESS + 0.05, CAR_HEIGHT, 0.9),
+        materials.cabYellow
+      );
+      wrap.position.set(
+        side * (CAR_WIDTH / 2 - WALL_THICKNESS / 2),
+        FLOOR_Y + CAR_HEIGHT / 2,
+        endZ - cabEnd * 0.45
+      );
+      car.add(wrap);
+    }
+
+    // Black surround, then the windscreen sitting proud of it.
+    const surround = new THREE.Mesh(
+      new THREE.BoxGeometry(CAR_WIDTH - 0.16, 1.28, 0.1),
+      materials.cabBlack
+    );
+    surround.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.3);
+    car.add(surround);
+
     const screen = new THREE.Mesh(
-      new THREE.BoxGeometry(CAR_WIDTH - 0.3, 1.0, 0.12),
+      new THREE.BoxGeometry(CAR_WIDTH - 0.42, 1.0, 0.12),
       materials.glass
     );
-    screen.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.28);
+    screen.position.set(0, FLOOR_Y + CAR_HEIGHT * 0.72, endZ + cabEnd * 0.33);
     car.add(screen);
+
+    // Route indicator box on the roofline, with two red marker lamps.
+    const indicator = new THREE.Mesh(
+      new THREE.BoxGeometry(0.9, 0.32, 0.16),
+      materials.cabBlack
+    );
+    indicator.position.set(0, FLOOR_Y + CAR_HEIGHT - 0.02, endZ + cabEnd * 0.3);
+    car.add(indicator);
+
+    for (const side of [-1, 1]) {
+      const marker = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.16, 0.08),
+        new THREE.MeshStandardMaterial({
+          color: 0xd8241c,
+          emissive: 0xff2a1a,
+          emissiveIntensity: 1.1,
+        })
+      );
+      marker.position.set(side * 0.22, FLOOR_Y + CAR_HEIGHT - 0.02, endZ + cabEnd * 0.37);
+      car.add(marker);
+    }
 
     // Driving desk, visible through the windscreen.
     const desk = new THREE.Mesh(

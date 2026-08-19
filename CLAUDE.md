@@ -16,7 +16,9 @@ Early scaffold. What exists today:
   brick station house.
 - A running line beside it: trapezoidal ballast, instanced sleepers, and rails
   at standard gauge.
-- A working two-car train, red and cream, with a full interior — floor,
+- A working two-car train in **KCR "Yellowhead" livery** — off-white body,
+  red waist stripe, yellow cab face with a black windscreen surround and red
+  marker lamps — with a full interior — floor,
   ceiling with a lit strip, lined walls, seating bays, grab poles — that you
   can walk into and ride. It is **double-ended**: a cab at each extremity, so
   it never turns; marker lights show white at the leading end, red at the
