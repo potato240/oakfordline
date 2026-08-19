@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // A PEAK-style first-person body: just hands and boots, with no arms, legs or
 // torso connecting them.
@@ -34,9 +33,14 @@ const STRIDE_LENGTH = 1.4; // metres of travel per half stride
 const STEP_REACH = 0.3; // how far a boot swings fore and aft
 const STEP_LIFT = 0.14;
 
+// Mostly self-lit: PEAK's hands read as a near-flat colour, barely shaded,
+// which is what stops them looking like a 3D prop bolted to the camera.
 const handMaterial = new THREE.MeshStandardMaterial({
-  color: 0x9fe3b8,
-  roughness: 0.75,
+  color: 0xa9e8c0,
+  emissive: 0x74b98f,
+  emissiveIntensity: 0.85,
+  roughness: 0.95,
+  metalness: 0,
 });
 const bootMaterial = new THREE.MeshStandardMaterial({
   color: 0x5f3327,
@@ -51,98 +55,53 @@ const soleMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.9,
 });
 
-// A chunky PEAK-style hand: a big soft palm, three stubby jointed fingers and
-// an opposed thumb. Held close to the camera and wide apart so the pair sit in
-// the bottom corners of the frame, slightly cropped - together they cover
-// about 9% of the screen, which is what makes them read as *your* hands rather
-// than props in the distance.
+// A flat mitten silhouette, cut as a 2D outline and extruded.
 //
-// Each finger is three capsule segments on nested pivots, so the curl happens
-// at the joints the way a knuckle does, rather than the whole finger bending
-// as one rigid banana.
-function makeFinger(length, radius, curl) {
-  const root = new THREE.Group();
-
-  const proportions = [0.42, 0.33, 0.25];
-  let parent = root;
-
-  proportions.forEach((share, i) => {
-    const segmentLength = length * share;
-
-    const joint = new THREE.Group();
-    // The first segment sits at the knuckle; later ones stack on the previous
-    // segment's tip and bend a little further.
-    joint.rotation.x = i === 0 ? curl * 0.6 : curl;
-    parent.add(joint);
-
-    const bone = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius * (1 - i * 0.13), segmentLength, 3, 8),
-      handMaterial
-    );
-    bone.position.y = segmentLength / 2;
-    bone.castShadow = true;
-    joint.add(bone);
-
-    const tip = new THREE.Group();
-    tip.position.y = segmentLength;
-    joint.add(tip);
-
-    parent = tip;
-  });
-
-  return root;
-}
-
+// The fingers are shallow scallops along the top edge, not protruding digits -
+// three soft bumps and a thumb lobe. Built as an outline rather than assembled
+// from primitives, because with a shape this simple the whole read is the
+// silhouette.
 function makeHand(side) {
-  const hand = new THREE.Group();
+  const shape = new THREE.Shape();
+  const u = (v) => v * side; // mirror for the other hand
 
-  // Palm.
-  const palm = new THREE.Mesh(
-    new RoundedBoxGeometry(0.185, 0.2, 0.055, 5, 0.05),
-    handMaterial
-  );
-  palm.castShadow = true;
-  hand.add(palm);
+  // Wrist, up the outer edge.
+  shape.moveTo(u(-0.10), -0.16);
+  shape.quadraticCurveTo(u(-0.135), -0.02, u(-0.125), 0.06);
 
-  // Heel of the hand, tapering towards the wrist.
-  const heel = new THREE.Mesh(
-    new RoundedBoxGeometry(0.155, 0.1, 0.053, 5, 0.045),
-    handMaterial
-  );
-  heel.position.y = -0.125;
-  hand.add(heel);
+  // Three finger bumps with shallow valleys between them.
+  shape.quadraticCurveTo(u(-0.13), 0.165, u(-0.068), 0.158);
+  shape.quadraticCurveTo(u(-0.042), 0.152, u(-0.036), 0.116);
+  shape.quadraticCurveTo(u(-0.03), 0.192, u(0.022), 0.185);
+  shape.quadraticCurveTo(u(0.048), 0.178, u(0.052), 0.132);
+  shape.quadraticCurveTo(u(0.058), 0.19, u(0.104), 0.168);
+  shape.quadraticCurveTo(u(0.138), 0.152, u(0.132), 0.082);
 
-  // Three fingers and a thumb. Splayed slightly, unequal in length, and a
-  // little thicker than four would be so the hand stays chunky.
-  const fingers = [
-    { x: -0.055, length: 0.052, radius: 0.033, splay: 0.14 },  // index
-    { x: 0.0, length: 0.058, radius: 0.034, splay: 0.0 },      // middle
-    { x: 0.055, length: 0.05, radius: 0.032, splay: -0.14 },   // outer
-  ];
+  // Down the inner edge into the thumb lobe.
+  shape.quadraticCurveTo(u(0.13), 0.022, u(0.152), -0.012);
+  shape.quadraticCurveTo(u(0.2), -0.032, u(0.188), -0.088);
+  shape.quadraticCurveTo(u(0.178), -0.134, u(0.112), -0.118);
 
-  for (const spec of fingers) {
-    const finger = makeFinger(spec.length, spec.radius, 0.3);
-    finger.position.set(side * spec.x, 0.095, 0);
-    finger.rotation.z = side * spec.splay;
-    hand.add(finger);
-  }
+  // Back round the heel to the wrist.
+  shape.quadraticCurveTo(u(0.02), -0.196, u(-0.10), -0.16);
 
-  // Thumb, off the side of the palm and rotated across it.
-  const thumb = makeFinger(0.055, 0.034, 0.3);
-  thumb.position.set(side * 0.092, -0.048, 0.008);
-  thumb.rotation.z = side * 1.25;
-  thumb.rotation.x = -0.2;
-  hand.add(thumb);
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.04,
+    bevelEnabled: true,
+    bevelThickness: 0.022,
+    bevelSize: 0.02,
+    bevelSegments: 3,
+    curveSegments: 18,
+  });
+  geometry.center();
 
   const group = new THREE.Group();
-  group.add(hand);
+  group.add(new THREE.Mesh(geometry, handMaterial));
 
-  // Cock the wrists so the hands frame the view rather than lying flat on.
-  // Tipped well forward so the backs of the hands face you and the fingers
-  // point away, rather than presenting an open palm like a wave.
-  group.rotation.x = -1.05;
-  group.rotation.z = side * 0.3;
-  group.rotation.y = side * -0.12;
+  // Fingers point up and slightly inwards, framing the view.
+  group.rotation.z = side * -0.38;
+  group.rotation.x = -0.12;
+  group.rotation.y = side * 0.2;
 
   return group;
 }

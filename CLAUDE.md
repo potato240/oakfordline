@@ -183,10 +183,12 @@ spaces on purpose**:
 
 - **Hands** are children of the camera, so they hold the same screen position
   however you turn your head - a held viewmodel. Verified: identical NDC at
-  every pitch. Each is an actual hand: a
-  `RoundedBoxGeometry` palm and heel, plus three fingers and a thumb, each
-  of three capsule segments on nested pivots, so the curl happens at the
-  joints rather than the finger bending as one rigid piece. 12 bones a hand.
+  every pitch. Each is a **flat extruded outline**
+  (`THREE.Shape` -> `ExtrudeGeometry`), not an assembly of primitives: fingers
+  are shallow scallops along the top edge rather than protruding digits, and
+  the material is mostly self-lit so the hand reads as a near-flat colour. The
+  whole effect is the silhouette, so anything that adds 3D shading works
+  against it.
 - **Boots** are world space, following position and **yaw only**. Parent them
   to the camera and they swing into the sky when you look up.
 
