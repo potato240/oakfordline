@@ -4,7 +4,7 @@ import { playBell } from './audio.js';
 
 const ROAD_HALF_LENGTH = 60; // how far the road runs either side of the line
 const ROAD_HALF_WIDTH = 3.5; // half the road width, measured along Z
-const BOOM_LENGTH = 5.4;
+const BOOM_LENGTH = ROAD_HALF_WIDTH * 2 + 0.6; // reaches the far kerb
 const POST_X = 5.6; // how far out from the track centre the posts stand
 
 // Warning starts this far out, and clears once the train is this far past.
@@ -57,11 +57,17 @@ function createRoad() {
 }
 
 // One barrier assembly: a post, two flashing lamps and a boom that lowers.
+//
+// The road runs along X and the railway along Z, so a boom that blocks the
+// road has to span Z - across the carriageway, not along it. Each barrier
+// stands on one approach, at the opposite road edge from its partner, so the
+// pair closes the road from both sides.
 function createBarrier(side, lamps) {
   const assembly = new THREE.Group();
 
-  // Booms lie across the road, so the near-side boom points towards the track.
-  const direction = -side;
+  const postX = side * POST_X;
+  const postZ = side * (ROAD_HALF_WIDTH + 0.5);
+  const direction = -side; // the boom reaches towards the far kerb
 
   const post = new THREE.Mesh(
     new THREE.CylinderGeometry(0.13, 0.16, 2.6, 10),
@@ -88,35 +94,35 @@ function createBarrier(side, lamps) {
     lamps.push({ mesh: lamp, phase: offset > 0 ? 1 : 0 });
   }
 
-  // Boom pivots at the post. Geometry is shifted so the pivot is at one end.
+  // Boom pivots at the post, running along Z so it spans the carriageway.
   const pivot = new THREE.Group();
   pivot.position.y = 1.55;
 
-  const boomGeometry = new THREE.BoxGeometry(BOOM_LENGTH, 0.13, 0.13);
-  boomGeometry.translate((direction * BOOM_LENGTH) / 2, 0, 0);
+  const boomGeometry = new THREE.BoxGeometry(0.13, 0.13, BOOM_LENGTH);
+  boomGeometry.translate(0, 0, (direction * BOOM_LENGTH) / 2);
   const boom = new THREE.Mesh(boomGeometry, materials.boomWhite);
   boom.castShadow = true;
   pivot.add(boom);
 
   // Red bands along the boom.
-  for (let i = 0; i < 3; i++) {
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.15, 0.15), materials.boomRed);
-    band.position.x = direction * (0.85 + i * 1.7);
+  for (let i = 0; i < 4; i++) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.8), materials.boomRed);
+    band.position.z = direction * (0.9 + i * 1.8);
     pivot.add(band);
   }
 
   // Skirt hanging under the boom, as on full-barrier crossings.
   const skirt = new THREE.Mesh(
-    new THREE.BoxGeometry(BOOM_LENGTH - 0.6, 0.34, 0.04),
+    new THREE.BoxGeometry(0.04, 0.34, BOOM_LENGTH - 0.6),
     materials.boomWhite
   );
-  skirt.position.set((direction * (BOOM_LENGTH - 0.6)) / 2, -0.28, 0);
+  skirt.position.set(0, -0.28, (direction * (BOOM_LENGTH - 0.6)) / 2);
   pivot.add(skirt);
 
   assembly.add(pivot);
-  assembly.position.set(side * POST_X, 0, side * (ROAD_HALF_WIDTH + 0.6));
+  assembly.position.set(postX, 0, postZ);
 
-  return { assembly, pivot, direction };
+  return { assembly, pivot, direction, postX, postZ };
 }
 
 export class Crossing {
@@ -151,9 +157,8 @@ export class Crossing {
     const boxes = [];
 
     for (const barrier of this.barriers) {
-      const side = barrier.direction === -1 ? 1 : -1;
-      const postX = side * POST_X;
-      const postZ = this.z + side * (ROAD_HALF_WIDTH + 0.6);
+      const postX = barrier.postX;
+      const postZ = this.z + barrier.postZ;
 
       boxes.push({
         minX: postX - 0.2, maxX: postX + 0.2,
@@ -161,10 +166,11 @@ export class Crossing {
         minY: 0, maxY: 2.6,
       });
 
+      // Lowered, the boom lies across the road - so it blocks along Z.
       const reach = barrier.direction * BOOM_LENGTH;
       boxes.push({
-        minX: Math.min(postX, postX + reach), maxX: Math.max(postX, postX + reach),
-        minZ: postZ - 0.16, maxZ: postZ + 0.16,
+        minX: postX - 0.16, maxX: postX + 0.16,
+        minZ: Math.min(postZ, postZ + reach), maxZ: Math.max(postZ, postZ + reach),
         minY: 1.2, maxY: 1.75,
         active: () => this.lowered > 0.6,
       });
@@ -176,7 +182,7 @@ export class Crossing {
   applyBooms() {
     for (const barrier of this.barriers) {
       // Raised is vertical; lowered is horizontal across the road.
-      barrier.pivot.rotation.z = barrier.direction * (1 - this.lowered) * (Math.PI / 2);
+      barrier.pivot.rotation.x = -barrier.direction * (1 - this.lowered) * (Math.PI / 2);
     }
   }
 
