@@ -27,6 +27,9 @@ Early scaffold. What exists today:
   trailing one, and swap over at each terminus.
 - Seven level crossings on the line, with lowering booms, alternately flashing
   red lamps, and a bell synthesised at runtime.
+- A pedestrian footpath crossing beside each station, with two swinging gates
+  and red/green lights. Closes the moment a train is inbound to that
+  station, opens the moment it departs.
 - Three pairs of sliding doors on **both** sides of each car. Only the side
   matching the current station's platform actually opens - which side that
   is comes from `STATIONS[].platformSide`, not a fixed side, so a future
@@ -76,6 +79,7 @@ rather than falling onto them.
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
+| `src/footCrossing.js`| Footpath crossing: swinging gates, ped lights, station-state driven. |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
 | `src/collision.js`| Axis-aligned box colliders; circle-vs-box resolution.  |
 | `src/body.js`    | Visible first-person body and its walk cycle.          |
@@ -315,6 +319,47 @@ Browsers refuse to start an `AudioContext` without a user gesture, so
 `startAudio()` is called from the start button's click handler. Calling it from
 anywhere else leaves the context `suspended` and the game silent. Bell volume
 falls off with the player's distance from the crossing.
+
+### Footpath crossings are station-state driven, not distance driven
+
+`FootCrossing` (`src/footCrossing.js`) is a separate class from the road
+`Crossing`, on purpose - it answers a different question. A road crossing out
+on the open line asks "is a train nearby, on my leg, right now" (distance).
+A footpath crossing sitting right next to a platform should ask "does this
+train have unfinished business with *this specific station*" - a station
+question, not a geometry one:
+
+```js
+const inbound = train.nextStation === this.station && train.state === 'running';
+const present = train.currentStation === this.station && train.state !== 'running';
+this.closed = inbound || present;
+```
+
+`this.station` is kept by **reference** to the actual entry in `STATIONS`
+(not copied, not compared by name or z), so it compares directly against
+whatever `train.currentStation` / `train.nextStation` return - those getters
+read `STATIONS[stationIndex]` / `STATIONS[targetIndex]` from the same array,
+so it's the same object.
+
+This closes the gate the instant the train starts running towards the
+station (before it's anywhere close) and reopens it the instant the train
+departs (`state` flips from `closing` to `running`) - no warning distance to
+tune, and no risk of the "on this leg" bug the road crossings needed, because
+there's no leg math here at all. Verified by stepping the whole state machine:
+the departure station's gate swings open and the next station's gate starts
+swinging shut in the very same frame the train's state becomes `running`.
+
+One crossing per station (`STATIONS.map`), positioned `PLATFORM_LENGTH/2 + 10`
+beyond the platform's end - direction doesn't matter, since which side of the
+station it sits on has no bearing on the station-state logic above, unlike a
+distance-based trigger where geometry would matter.
+
+Gates are two swinging arms (not lifting booms like the road crossings) -
+each hinges at a post and rotates about **Y**, between lying along X (open,
+folded flat) and along Z (closed, spanning the 2.2m footpath). The red/green
+pedestrian lamps and the gate's own collider both key off the same
+`closed`/`swing` state, so a "closed" gate is never visually shut while still
+walkable.
 
 ## The visible body
 

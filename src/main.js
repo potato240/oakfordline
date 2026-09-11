@@ -26,7 +26,7 @@ const camera = new THREE.PerspectiveCamera(
   6000
 );
 
-const { scene, heightAt, train, crossings, colliders, seats } = buildWorld();
+const { scene, heightAt, train, crossings, footCrossings, colliders, seats } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt, colliders);
 scene.add(player.object);
 
@@ -88,7 +88,7 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player, train, crossings, colliders, body, seats };
+  window.game = { scene, camera, renderer, player, train, crossings, footCrossings, colliders, body, seats };
 }
 
 const sky = scene.getObjectByName('sky');
@@ -120,6 +120,7 @@ renderer.setAnimationLoop(() => {
   body.update(position, bodyEuler.y, stepped, delta);
 
   for (const crossing of crossings) crossing.update(delta, train, position);
+  for (const footCrossing of footCrossings) footCrossing.update(delta, train);
 
   // Find the closest seat in reach, for the "Press E to sit" prompt and for
   // KeyE to act on. Skipped entirely while already seated - standing up is

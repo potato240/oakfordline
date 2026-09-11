@@ -4,6 +4,7 @@ import { createStation, stationColliders } from './station.js';
 import { Train } from './train.js';
 import { createScenery } from './scenery.js';
 import { Crossing } from './crossing.js';
+import { FootCrossing } from './footCrossing.js';
 import { Colliders } from './collision.js';
 import {
   PLATFORM_HEIGHT,
@@ -108,6 +109,16 @@ export function buildWorld() {
     for (const box of stationColliders(station.z)) colliders.add(box);
   }
 
+  // A pedestrian footpath crossing just beyond the end of each platform.
+  const FOOT_CROSSING_OFFSET = PLATFORM_LENGTH / 2 + 10;
+  const footCrossings = STATIONS.map(
+    (station) => new FootCrossing(station, FOOT_CROSSING_OFFSET)
+  );
+  for (const footCrossing of footCrossings) {
+    scene.add(footCrossing.group);
+    for (const box of footCrossing.colliders()) colliders.add(box);
+  }
+
   const train = new Train();
   scene.add(train.group);
   for (const box of train.colliders()) colliders.add(box);
@@ -141,5 +152,5 @@ export function buildWorld() {
     getWorldZ: () => train.group.position.z + seat.car.position.z + seat.localZ,
   }));
 
-  return { scene, heightAt, train, crossings, colliders, seats };
+  return { scene, heightAt, train, crossings, footCrossings, colliders, seats };
 }
