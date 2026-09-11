@@ -45,15 +45,19 @@ const materials = {
   cabYellow: new THREE.MeshStandardMaterial({ color: 0xf6c81b, roughness: 0.4 }),
   cabBlack: new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.5 }),
   roof: new THREE.MeshStandardMaterial({ color: 0xb4b4b0, roughness: 0.8 }),
-  // Genuinely see-through: opaque "glass" was the actual bug - a solid dark
-  // panel with no transparency at all, so interiors read as sealed black
-  // boxes both from outside and (worse) from inside looking out.
+  // Genuinely see-through: opaque "glass" was the original bug - a solid
+  // dark panel with no transparency at all. 0.42 opacity turned out to still
+  // read as opaque-ish once you look through two panes in series (the near
+  // window, the far one) - verified by aiming straight across the saloon at
+  // window height and finding daylight on the far side barely lightened the
+  // pixel at all. Dropped hard, and lightened the tint so what little colour
+  // remains does not itself read as a dark wall.
   glass: new THREE.MeshStandardMaterial({
-    color: 0x1c2730,
-    roughness: 0.08,
-    metalness: 0.35,
+    color: 0x3f5566,
+    roughness: 0.06,
+    metalness: 0.2,
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.16,
     depthWrite: false,
   }),
   under: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.9 }),
@@ -378,13 +382,29 @@ function addSideWall(car, side, doorLeaves) {
       car.add(chevron);
     }
 
-    // Inner face, so the interior does not read as raw livery colour.
-    const lining = new THREE.Mesh(
-      new THREE.BoxGeometry(0.03, INTERIOR_HEIGHT * 0.9, segment.length - 0.05),
-      materials.interiorWall
+    // Inner face lining, so solid parts of the wall do not read as raw livery
+    // colour from inside. This used to be one flat panel spanning the full
+    // segment height, which - being opaque - sat directly behind every window
+    // opening and blocked the view straight through even once the glass
+    // itself was made transparent. It now follows the exact same lower/upper
+    // band split as the bodyshell, so it only ever covers the solid parts.
+    const liningX = x - side * WALL_THICKNESS * 0.6;
+    function addLining(minY, maxY, centreZ, lengthZ) {
+      const lining = new THREE.Mesh(
+        new THREE.BoxGeometry(0.03, maxY - minY, lengthZ - 0.05),
+        materials.interiorWall
+      );
+      lining.position.set(liningX, FLOOR_Y + (minY + maxY) / 2, centreZ);
+      car.add(lining);
+    }
+
+    addLining(BODY_PROFILE[0][1], WINDOW_SILL_Y, segment.centre, segment.length);
+    addLining(
+      WINDOW_HEAD_Y,
+      BODY_PROFILE[BODY_PROFILE.length - 1][1],
+      segment.centre,
+      segment.length
     );
-    lining.position.set(x - side * WALL_THICKNESS * 0.6, FLOOR_Y + INTERIOR_HEIGHT * 0.45, segment.centre);
-    car.add(lining);
 
     // Window band: real openings with mullions between them, not glass boxes
     // laid against a solid sheet. The piers are about 2.3m wide, which is why
@@ -402,37 +422,59 @@ function addSideWall(car, side, doorLeaves) {
 
       // Solid mullions fill everything in the window band that is not an
       // opening: before the first window, between each pair, and after the
-      // last one.
+      // last one. Lining is added for the same span, so a mullion's interior
+      // face is finished but a window's is left genuinely open both sides.
       let cursor = segStart;
       for (const [oStart, oEnd] of openings) {
         if (oStart - cursor > 0.02) {
           const mullionLength = oStart - cursor;
-          car.add(
-            extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, cursor + mullionLength / 2, mullionLength)
-          );
+          const mullionCentre = cursor + mullionLength / 2;
+          car.add(extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, mullionCentre, mullionLength));
+          addLining(WINDOW_SILL_Y, WINDOW_HEAD_Y, mullionCentre, mullionLength);
         }
         cursor = oEnd;
       }
       if (segEnd - cursor > 0.02) {
         const mullionLength = segEnd - cursor;
+        const mullionCentre = cursor + mullionLength / 2;
+        addLining(WINDOW_SILL_Y, WINDOW_HEAD_Y, mullionCentre, mullionLength);
         car.add(
-          extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, cursor + mullionLength / 2, mullionLength)
+          extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, mullionCentre, mullionLength)
         );
       }
 
       // Frame and glass sit in the actual opening, which now has nothing
       // behind it - a real hole rather than a hidden pane.
+      //
+      // The frame used to be a single solid box the same size as the opening,
+      // positioned directly behind the pane on the ray path from outside - an
+      // opaque backing plate that blocked the view straight through no matter
+      // how transparent the glass itself was. It is now four thin bars
+      // forming an open ring around the edge, with nothing solid across the
+      // middle where the pane actually is.
+      const frameX = side * (outerHalfWidth(WINDOW_CENTRE_Y) - 0.04);
+      const frameThickness = 0.08;
+
+      function addFrameBar(y, z, sizeY, sizeZ) {
+        const bar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, sizeY, sizeZ),
+          materials.windowFrame
+        );
+        bar.position.set(frameX, FLOOR_Y + y, z);
+        car.add(bar);
+      }
+
       for (const [oStart, oEnd] of openings) {
         const z = (oStart + oEnd) / 2;
         const width = oEnd - oStart;
+        const openingHeight = WINDOW_HEAD_Y - WINDOW_SILL_Y;
+        const frameZFrom = oStart - 0.03;
+        const frameZTo = oEnd + 0.03;
 
-        const surround = new THREE.Mesh(
-          new THREE.BoxGeometry(0.12, WINDOW_HEAD_Y - WINDOW_SILL_Y + 0.12, width + 0.06),
-          materials.windowFrame
-        );
-        const glassX = side * (outerHalfWidth(WINDOW_CENTRE_Y) - 0.04);
-        surround.position.set(glassX, FLOOR_Y + WINDOW_CENTRE_Y, z);
-        car.add(surround);
+        addFrameBar(WINDOW_HEAD_Y - frameThickness / 2, z, frameThickness, frameZTo - frameZFrom);
+        addFrameBar(WINDOW_SILL_Y + frameThickness / 2, z, frameThickness, frameZTo - frameZFrom);
+        addFrameBar(WINDOW_CENTRE_Y, frameZFrom + frameThickness / 2, openingHeight, frameThickness);
+        addFrameBar(WINDOW_CENTRE_Y, frameZTo - frameThickness / 2, openingHeight, frameThickness);
 
         const pane = new THREE.Mesh(
           new THREE.BoxGeometry(0.12, WINDOW_HEAD_Y - WINDOW_SILL_Y - 0.08, width - 0.1),
@@ -444,6 +486,7 @@ function addSideWall(car, side, doorLeaves) {
     } else {
       // Too narrow for a window - solid pier the full segment length.
       car.add(extrudeBand(side, WINDOW_SILL_Y, WINDOW_HEAD_Y, segment.centre, segment.length));
+      addLining(WINDOW_SILL_Y, WINDOW_HEAD_Y, segment.centre, segment.length);
     }
   }
 

@@ -176,6 +176,31 @@ they cannot drift out of sync with each other - but they can still drift out
 of sync with the *header* geometry above the doorways, which is untouched by
 this and still assumes a flat wall thickness at a fixed x.
 
+### The glass being "transparent" was not enough on its own
+
+A real opening plus a transparent material still is not see-through if
+something opaque sits directly behind the pane. Two separate things were
+doing exactly that, independently of each other and of the opacity value:
+
+1. **The interior lining.** `addLining()` used to be one flat opaque panel
+   spanning the full pier height, including the entire window band. It now
+   follows the same lower/upper band split as the bodyshell, plus one lining
+   piece per mullion - never one across an actual opening.
+2. **The window frame.** `surround` used to be a single solid box the same
+   size as the opening, positioned slightly further into the car than the
+   pane along the ray from outside - an opaque backing plate directly behind
+   the glass. It is now four thin bars (`addFrameBar()`) forming an open ring
+   around the edge, with nothing solid across the middle.
+
+Bumping `materials.glass.opacity` down (it went from 0.42 to 0.16) looked
+like the fix at first, but re-testing at the same spot gave an unchanged
+pixel - because the ray was never reaching open air in the first place, no
+matter how transparent the pane was. Confirmed the fix properly by
+raycasting through a real pane's exact world position (queried live from the
+scene, not computed by hand - hand-computed window centres kept landing on
+mullions instead) and checking the full hit list: near pane -> far-side pane
+-> sky, with nothing opaque between them.
+
 ## Doors on both sides, opened per-station
 
 Both sides of the car have real, working door leaves - `addSideWall()` builds
