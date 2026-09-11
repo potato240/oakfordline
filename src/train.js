@@ -830,7 +830,7 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
     cabSkirt.position.set(0, FLOOR_Y + 0.17, endZ + cabEnd * 0.16);
     car.add(cabSkirt);
 
-    // Route indicator box on the roofline, with two red marker lamps.
+    // Route indicator box on the roofline.
     const indicator = new THREE.Mesh(
       new THREE.BoxGeometry(1.28, 0.4, 0.16),
       materials.cabBlack
@@ -843,19 +843,6 @@ function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
     board.mesh.position.set(0, FLOOR_Y + CAR_HEIGHT - 0.02, endZ + cabEnd * 0.39);
     board.mesh.rotation.y = cabEnd > 0 ? 0 : Math.PI;
     car.add(board.mesh);
-
-    for (const side of [-1, 1]) {
-      const marker = new THREE.Mesh(
-        new THREE.BoxGeometry(0.16, 0.16, 0.08),
-        new THREE.MeshStandardMaterial({
-          color: 0xd8241c,
-          emissive: 0xff2a1a,
-          emissiveIntensity: 1.1,
-        })
-      );
-      marker.position.set(side * 0.22, FLOOR_Y + CAR_HEIGHT - 0.02, endZ + cabEnd * 0.37);
-      car.add(marker);
-    }
 
     // Driving desk, visible through the windscreen.
     const desk = new THREE.Mesh(
