@@ -30,6 +30,11 @@ export class Player {
     this.dragLook = false;
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
+    // Set while sitting: { x, eyeY, getWorldZ() }. Movement is suspended and
+    // position is pinned to the seat (which itself tracks the moving train)
+    // until standUp() is called or the player presses a movement key.
+    this.seat = null;
+
     document.addEventListener('keydown', (event) => this.keys.add(event.code));
     document.addEventListener('keyup', (event) => this.keys.delete(event.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -46,6 +51,19 @@ export class Player {
 
   lock() {
     this.controls.lock();
+  }
+
+  sitAt(seat) {
+    this.seat = seat;
+    this.velocity.set(0, 0, 0);
+  }
+
+  standUp() {
+    this.seat = null;
+  }
+
+  get isSeated() {
+    return this.seat !== null;
   }
 
   // Fallback for browsers that reject pointer lock: hold left button and drag.
@@ -80,6 +98,24 @@ export class Player {
   }
 
   update(delta) {
+    if (this.seat) {
+      // Standing up on any movement key is a deliberate convenience - most
+      // players will try to just walk away rather than hunt for a key.
+      const tryingToMove =
+        this.keys.has('KeyW') || this.keys.has('KeyA') ||
+        this.keys.has('KeyS') || this.keys.has('KeyD') ||
+        this.keys.has('ArrowUp') || this.keys.has('ArrowDown') ||
+        this.keys.has('ArrowLeft') || this.keys.has('ArrowRight');
+
+      if (tryingToMove) {
+        this.standUp();
+      } else {
+        const position = this.controls.object.position;
+        position.set(this.seat.x, this.seat.eyeY, this.seat.getWorldZ());
+        return;
+      }
+    }
+
     // Exponential damping, independent of framerate.
     const damping = Math.exp(-DAMPING * delta) - 1;
     this.velocity.x += this.velocity.x * damping;

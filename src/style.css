@@ -126,3 +126,24 @@ body {
 #status.visible {
   opacity: 1;
 }
+
+#interact {
+  position: fixed;
+  left: 50%;
+  top: calc(50% + 2.4rem);
+  transform: translateX(-50%);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(11, 14, 19, 0.7);
+  color: #f2f6fb;
+  font-size: 0.85rem;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+
+#interact.visible {
+  opacity: 1;
+}

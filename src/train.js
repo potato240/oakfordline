@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { playDoorBeep } from './audio.js';
 import {
   TRACK_GAUGE,
   CAR_LENGTH,
@@ -22,6 +23,7 @@ const DECELERATION = 1.6;
 const DWELL_SECONDS = 14;
 const DOOR_SECONDS = 2.2;
 const DOOR_LIGHT_FLASH_INTERVAL = 0.22; // brisk, urgent - doors are about to shut
+const DOOR_BEEP_AUDIBLE_RANGE = 30; // metres; louder than the crossing bell's, but local to the train
 
 const HALF_LENGTH = CAR_LENGTH / 2;
 
@@ -600,7 +602,9 @@ function addSideWall(car, side, doorLeaves, doorLights) {
   }
 }
 
-function addInterior(car) {
+const SEAT_PITCH = 0.56; // typical seat width, used to divide a bench into spots
+
+function addInterior(car, seats) {
   const floor = new THREE.Mesh(
     new THREE.BoxGeometry(CAR_WIDTH - WALL_THICKNESS, 0.08, CAR_LENGTH),
     materials.floor
@@ -687,6 +691,35 @@ function addInterior(car) {
       );
       plinth.position.set(x, FLOOR_Y + 0.2, segment.centre);
       car.add(plinth);
+
+      // Discrete seat spots along the bench, each an actual place the player
+      // can sit - the cushion itself stays one continuous piece, but a thin
+      // armrest divider marks each spot the way a real bench does.
+      const spotCount = Math.max(1, Math.round(benchLength / SEAT_PITCH));
+      const spotPitch = benchLength / spotCount;
+      const benchStart = segment.centre - benchLength / 2;
+
+      for (let i = 0; i < spotCount; i++) {
+        const spotZ = benchStart + spotPitch * (i + 0.5);
+
+        seats.push({
+          car,
+          x,
+          // Seated eye height: cushion top (FLOOR_Y + 0.5) plus a seated
+          // adult's eye height above the seat, roughly 0.62m.
+          eyeY: FLOOR_Y + 1.12,
+          localZ: spotZ,
+        });
+
+        if (i > 0) {
+          const armrest = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.14, 0.05),
+            materials.pole
+          );
+          armrest.position.set(x, FLOOR_Y + 0.57, benchStart + spotPitch * i);
+          car.add(armrest);
+        }
+      }
     }
   }
 
@@ -785,11 +818,11 @@ function addRoofGear(car, withPantograph) {
   car.add(panto);
 }
 
-function createCarriage({ cabEnd = 0 }, doorLeaves, doorLights, wheels, cabs) {
+function createCarriage({ cabEnd = 0 }, doorLeaves, doorLights, seats, wheels, cabs) {
   const car = new THREE.Group();
 
   addRunningGear(car, wheels);
-  addInterior(car);
+  addInterior(car, seats);
   addRoofGear(car, cabEnd === -1);
   addSideWall(car, 1, doorLeaves, doorLights);
   addSideWall(car, -1, doorLeaves, doorLights);
@@ -985,6 +1018,7 @@ export class Train {
 
     this.doorLeaves = [];
     this.doorLights = [];
+    this.seats = [];
     this.wheels = [];
     this.cabs = [];
 
@@ -994,6 +1028,7 @@ export class Train {
       { cabEnd: 1 },
       this.doorLeaves,
       this.doorLights,
+      this.seats,
       this.wheels,
       this.cabs
     );
@@ -1004,6 +1039,7 @@ export class Train {
       { cabEnd: -1 },
       this.doorLeaves,
       this.doorLights,
+      this.seats,
       this.wheels,
       this.cabs
     );
@@ -1093,7 +1129,7 @@ export class Train {
   // closing, off once shut. Mirrors applyDoors()'s side gating exactly: a
   // light only ever lights up on the side matching the current station's
   // platform, since that is the only side actually doing anything.
-  updateDoorLights(delta) {
+  updateDoorLights(delta, playerPosition = null) {
     const platformSide = this.currentStation.platformSide;
 
     let mode;
@@ -1106,6 +1142,17 @@ export class Train {
       if (this.doorLightFlashTimer >= DOOR_LIGHT_FLASH_INTERVAL) {
         this.doorLightFlashTimer -= DOOR_LIGHT_FLASH_INTERVAL;
         this.doorLightFlashOn = !this.doorLightFlashOn;
+
+        // One beep per flash, on the rising edge only - this is what turns a
+        // toggling light into a "beepbeepbeep" pattern instead of one tone
+        // for the whole closing sequence.
+        if (this.doorLightFlashOn && playerPosition) {
+          const dx = playerPosition.x;
+          const dz = playerPosition.z - this.group.position.z;
+          const range = Math.sqrt(dx * dx + dz * dz);
+          const falloff = Math.max(0, 1 - range / DOOR_BEEP_AUDIBLE_RANGE);
+          playDoorBeep(falloff * falloff);
+        }
       }
     } else {
       this.doorLightFlashTimer = 0;
@@ -1135,7 +1182,7 @@ export class Train {
     return CAR_LENGTH + CAR_GAP / 2;
   }
 
-  update(delta) {
+  update(delta, playerPosition = null) {
     const previousZ = this.group.position.z;
 
     switch (this.state) {
@@ -1195,7 +1242,7 @@ export class Train {
     }
 
     this.applyDoors();
-    this.updateDoorLights(delta);
+    this.updateDoorLights(delta, playerPosition);
 
     this.updateDestinationBoards();
 

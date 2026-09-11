@@ -131,5 +131,15 @@ export function buildWorld() {
     return 0;
   }
 
-  return { scene, heightAt, train, crossings, colliders };
+  // Sittable spots. train.seats stores car-local data (car is a specific
+  // carriage's group, which only ever moves in Z); wrapping it here gives
+  // each spot a live world position that tracks the train as it runs,
+  // without train.js needing to know anything about player interaction.
+  const seats = train.seats.map((seat) => ({
+    x: seat.x,
+    eyeY: seat.eyeY,
+    getWorldZ: () => train.group.position.z + seat.car.position.z + seat.localZ,
+  }));
+
+  return { scene, heightAt, train, crossings, colliders, seats };
 }

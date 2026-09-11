@@ -31,7 +31,10 @@ Early scaffold. What exists today:
   matching the current station's platform actually opens - which side that
   is comes from `STATIONS[].platformSide`, not a fixed side, so a future
   station can have its platform on the other side and the correct doors
-  will open there.
+  will open there. An orange light above each door goes steady while it is
+  open or opening, flashes red while it is closing (with a matching
+  "beepbeepbeep"), and goes dark once shut.
+- Sittable bench seats along the saloon. Walk up to one and press `E`.
 - An eight-stop line, each stop 280m apart over 1.96km: **Oakford**, **Bramley
   Halt**, **Wexley**, **Marsden Cross**, **Kingsford**, **Ashcombe**,
   **Thornleigh**, **Portmead**. The train calls at each in turn, reverses at
@@ -244,6 +247,41 @@ up on the side matching `currentStation.platformSide`, so the side that never
 opens at this stop stays dark regardless of `state`. Verified by flipping
 `platformSide` at runtime - the same six fixtures that were lit went dark and
 the other six lit up, matching which doors actually move.
+
+The doors-closing beep (`playDoorBeep()` in `audio.js`) rides on the exact
+same flash toggle: one beep on every rising edge of `doorLightFlashOn`, which
+is what turns it into a repeated "beepbeepbeep" for the whole closing
+sequence rather than one long tone. It only fires when `Train.update()` is
+given a player position (`train.update(delta, playerPosition)`); `main.js`
+passes `player.object.position` for exactly this reason. Distance falloff
+uses the same shape as the crossing bell's, just with a much shorter
+`DOOR_BEEP_AUDIBLE_RANGE` since it should read as coming from right there in
+the carriage, not across the whole map.
+
+## Sitting
+
+`Train.seats` (built alongside the seating in `addInterior()`) stores each
+spot as `{ car, x, eyeY, localZ }` - car-local data, because a car only ever
+moves in Z and `car.position.z` already carries that offset once the Train
+constructor sets it. `world.js` wraps each one in `{ x, eyeY, getWorldZ() }`,
+where `getWorldZ()` reads `train.group.position.z + car.position.z + localZ`
+live - so a seat's world position tracks the moving train with no extra
+per-frame bookkeeping anywhere else.
+
+`Player.sitAt(seat)` / `standUp()` toggle `this.seat`. While seated,
+`update()` returns immediately after pinning position to
+`(seat.x, seat.eyeY, seat.getWorldZ())`, skipping velocity and collision
+entirely - mouse look still works normally since `PointerLockControls`
+drives the camera's rotation independently of position. Pressing any
+movement key while seated stands the player up first, then falls through to
+normal movement the same frame, rather than requiring `E` twice.
+
+`main.js` finds the nearest seat within `SEAT_REACH` each frame (skipped
+entirely while already seated) and drives the `#interact` prompt and the
+`KeyE` handler from it. Verified directly against `Player`: sitting pins
+position exactly to the seat's expected `(x, eyeY, z)`; moving the train
+afterwards changes the seated position to match `getWorldZ()`'s new value
+with no drift; pressing `W` while seated stands the player up.
 
 ## Level crossings and sound
 

@@ -62,3 +62,30 @@ export function playBell(volume = 1, frequency = 660) {
   // Let the voice node go once the tail has finished.
   window.setTimeout(() => voice.disconnect(), 1100);
 }
+
+// A short electronic door-closing beep. Unlike the bell, this wants to sound
+// synthetic and urgent - a single sine tone with a near-instant on/off, no
+// ring-down, repeated by the caller for the classic "beepbeepbeep" pattern.
+export function playDoorBeep(volume = 1, frequency = 1100) {
+  if (!audioReady() || volume <= 0.001) return;
+
+  const now = context.currentTime;
+  const duration = 0.09;
+
+  const oscillator = context.createOscillator();
+  oscillator.type = 'square';
+  oscillator.frequency.value = frequency;
+
+  const envelope = context.createGain();
+  envelope.gain.setValueAtTime(0.0001, now);
+  envelope.gain.exponentialRampToValueAtTime(volume * 0.12, now + 0.006);
+  envelope.gain.setValueAtTime(volume * 0.12, now + duration - 0.015);
+  envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  oscillator.connect(envelope);
+  envelope.connect(master);
+  oscillator.start(now);
+  oscillator.stop(now + duration + 0.02);
+
+  window.setTimeout(() => envelope.disconnect(), (duration + 0.1) * 1000);
+}
