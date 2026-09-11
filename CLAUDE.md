@@ -26,10 +26,7 @@ Early scaffold. What exists today:
   it never turns; marker lights show white at the leading end, red at the
   trailing one, and swap over at each terminus.
 - Seven level crossings on the line, with lowering booms, alternately flashing
-  red lamps, and a bell synthesised at runtime. Each one also carries a
-  pedestrian footpath alongside it, with two swinging gates that open away
-  from the track and red/green lights mounted on the crossing's own posts -
-  directly linked to the road crossing's state, not a separate timer.
+  red lamps, and a bell synthesised at runtime.
 - Three pairs of sliding doors on **both** sides of each car. Only the side
   matching the current station's platform actually opens - which side that
   is comes from `STATIONS[].platformSide`, not a fixed side, so a future
@@ -79,7 +76,6 @@ rather than falling onto them.
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
-| `src/footCrossing.js`| Footpath crossing: swinging gates, ped lights, station-state driven. |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
 | `src/collision.js`| Axis-aligned box colliders; circle-vs-box resolution.  |
 | `src/body.js`    | Visible first-person body and its walk cycle.          |
@@ -319,53 +315,6 @@ Browsers refuse to start an `AudioContext` without a user gesture, so
 `startAudio()` is called from the start button's click handler. Calling it from
 anywhere else leaves the context `suspended` and the game silent. Bell volume
 falls off with the player's distance from the crossing.
-
-### Footpath crossings are attached to a road crossing, not a station
-
-`FootCrossing` (`src/footCrossing.js`) used to be independent of the road
-`Crossing` - its own posts, its own state machine keyed to which station a
-train was heading for. That was wrong for what it is: a real footpath
-alongside a road crossing shares that crossing's protection. One warning
-covers both, so the footpath should not be deciding anything of its own - it
-should just be told what the road crossing is already doing.
-
-```js
-// FootCrossing.update() - no delta, no train, no timers of its own
-applyGates() {
-  const swing = this.crossing.lowered;   // read straight from the road crossing
-  ...
-}
-applyLamps() {
-  const closed = this.crossing.active;   // same
-  ...
-}
-```
-
-`this.crossing` is the actual `Crossing` instance, kept by reference. There
-is no independent easing, no independent approach/clear window - the
-footpath's lamps and gates are a direct function of fields the road crossing
-already computed that frame. Built one per road crossing (`crossings.map`),
-not one per station: 7 now, not 8. Verified by running a real train past a
-crossing: the pedestrian lamp flips red and back to green in the **same
-frame** the road crossing's own `active` flag does, across a full approach
-and departure.
-
-**The signal lamps are children of the crossing's own post mesh** -
-`createBarrier()` in `crossing.js` now returns `post` alongside its existing
-fields so `addPedestrianSignal()` can call `post.add(...)`, genuinely mounting
-onto the same physical object the road's own flashing lamps sit on, not a
-lookalike built to stand nearby. The footpath itself runs parallel to the
-road, offset by `FOOTPATH_Z` clear of the carriageway, and its gates line up
-with the road barriers in X by reusing `barrier.postX` directly rather than
-an independently chosen distance.
-
-**Gates swing away from the track when opening, not across it or into it** -
-worth calling out because the first version had this backwards: `openAngle`
-was `side > 0 ? -PI/2 : PI/2`, which swung each gate's tip *toward* the
-centreline. Flipping the ternary sends the +X gate's tip further +X and the
--X gate's tip further -X. Verified directly: with the hinge fixed at
-`x = ±5.6`, the open tip lands at `x = ±8.05` - further from the track, not
-closer.
 
 ## The visible body
 

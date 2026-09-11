@@ -4,7 +4,6 @@ import { createStation, stationColliders } from './station.js';
 import { Train } from './train.js';
 import { createScenery } from './scenery.js';
 import { Crossing } from './crossing.js';
-import { FootCrossing } from './footCrossing.js';
 import { Colliders } from './collision.js';
 import {
   PLATFORM_HEIGHT,
@@ -124,15 +123,6 @@ export function buildWorld() {
     for (const box of crossing.colliders()) colliders.add(box);
   }
 
-  // A pedestrian footpath running alongside each road crossing, sharing its
-  // signal posts and its open/closed state - one per crossing, not one per
-  // station.
-  const footCrossings = crossings.map((crossing) => new FootCrossing(crossing));
-  for (const footCrossing of footCrossings) {
-    scene.add(footCrossing.group);
-    for (const box of footCrossing.colliders()) colliders.add(box);
-  }
-
   // Standing surface under the player. The train wins over the platform, so
   // stepping through the doorway puts you on the saloon floor.
   function heightAt(x, z) {
@@ -151,5 +141,5 @@ export function buildWorld() {
     getWorldZ: () => train.group.position.z + seat.car.position.z + seat.localZ,
   }));
 
-  return { scene, heightAt, train, crossings, footCrossings, colliders, seats };
+  return { scene, heightAt, train, crossings, colliders, seats };
 }

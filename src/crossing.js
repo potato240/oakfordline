@@ -3,7 +3,7 @@ import { RAIL_TOP_Y, BALLAST_HEIGHT } from './layout.js';
 import { playBell } from './audio.js';
 
 const ROAD_HALF_LENGTH = 60; // how far the road runs either side of the line
-export const ROAD_HALF_WIDTH = 3.5; // half the road width, measured along Z
+const ROAD_HALF_WIDTH = 3.5; // half the road width, measured along Z
 const BOOM_LENGTH = ROAD_HALF_WIDTH * 2 + 0.6; // reaches the far kerb
 const POST_X = 5.6; // how far out from the track centre the posts stand
 
@@ -122,11 +122,7 @@ function createBarrier(side, lamps) {
   assembly.add(pivot);
   assembly.position.set(postX, 0, postZ);
 
-  // `post` is exposed so a companion pedestrian crossing (FootCrossing) can
-  // mount its own signal lamps directly onto this same post, rather than
-  // building a separate one - "the lights are on the crossing post" only
-  // means something if it is genuinely the same object.
-  return { assembly, pivot, direction, postX, postZ, post };
+  return { assembly, pivot, direction, postX, postZ };
 }
 
 export class Crossing {
