@@ -37,7 +37,6 @@ const STRIPE_HEIGHT = 0.13;
 const STRIPE_Y = FLOOR_Y + CAR_HEIGHT * 0.38;
 const INNER_HALF_WIDTH = CAR_WIDTH / 2 - WALL_THICKNESS;
 const CEILING_Y = FLOOR_Y + INTERIOR_HEIGHT;
-const ROOF_TOP = FLOOR_Y + CAR_HEIGHT + (CAR_WIDTH / 2) * 0.34;
 
 // KCR "Yellowhead" livery: off-white bodyside with a red waist stripe, and a
 // yellow cab face - which is what the nickname refers to.
@@ -73,7 +72,6 @@ const materials = {
   pole: new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.3, metalness: 0.8 }),
   door: new THREE.MeshStandardMaterial({ color: 0xf7f8f9, roughness: 0.4 }),
   windowFrame: new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.55, metalness: 0.3 }),
-  roofGear: new THREE.MeshStandardMaterial({ color: 0x8f9195, roughness: 0.6, metalness: 0.5 }),
   skirt: new THREE.MeshStandardMaterial({ color: 0x53585c, roughness: 0.8 }),
   strip: new THREE.MeshStandardMaterial({
     color: 0xfff8e6,
@@ -769,61 +767,11 @@ function addRunningGear(car, wheels) {
   car.add(skirt);
 }
 
-// Roof equipment, and a pantograph on the motor car. An EMU roof is rarely
-// bare, and the raised pantograph is a big part of the silhouette.
-function addRoofGear(car, withPantograph) {
-  for (const z of [-7.4, -2.2, 6.6]) {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 2.0), materials.roofGear);
-    box.position.set(0, ROOF_TOP - 0.04, z);
-    box.castShadow = true;
-    car.add(box);
-  }
-
-  if (!withPantograph) return;
-
-  const panto = new THREE.Group();
-  panto.position.set(0, ROOF_TOP, 2.4);
-
-  for (const x of [-0.62, 0.62]) {
-    for (const z of [-0.7, 0.7]) {
-      const insulator = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.06, 0.22, 8),
-        materials.under
-      );
-      insulator.position.set(x, 0.11, z);
-      panto.add(insulator);
-    }
-  }
-
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 1.7), materials.roofGear);
-  base.position.y = 0.26;
-  panto.add(base);
-
-  // Two arms folded into the usual Z, with the contact strip on top.
-  const lower = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 1.6), materials.roofGear);
-  lower.position.set(0, 0.62, -0.38);
-  lower.rotation.x = 0.72;
-  panto.add(lower);
-
-  const upper = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 1.4), materials.roofGear);
-  upper.position.set(0, 1.06, 0.34);
-  upper.rotation.x = -0.88;
-  panto.add(upper);
-
-  const pan = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.16), materials.roofGear);
-  pan.position.set(0, 1.36, 0.74);
-  pan.castShadow = true;
-  panto.add(pan);
-
-  car.add(panto);
-}
-
 function createCarriage({ cabEnd = 0 }, doorLeaves, doorLights, seats, wheels, cabs) {
   const car = new THREE.Group();
 
   addRunningGear(car, wheels);
   addInterior(car, seats);
-  addRoofGear(car, cabEnd === -1);
   addSideWall(car, 1, doorLeaves, doorLights);
   addSideWall(car, -1, doorLeaves, doorLights);
 
