@@ -21,6 +21,7 @@ const ACCELERATION = 1.3;
 const DECELERATION = 1.6;
 const DWELL_SECONDS = 14;
 const DOOR_SECONDS = 2.2;
+const DOOR_LIGHT_FLASH_INTERVAL = 0.22; // brisk, urgent - doors are about to shut
 
 const HALF_LENGTH = CAR_LENGTH / 2;
 
@@ -312,7 +313,7 @@ function wallSegments() {
   return segments;
 }
 
-function addSideWall(car, side, doorLeaves) {
+function addSideWall(car, side, doorLeaves, doorLights) {
   const x = side * (CAR_WIDTH / 2 - WALL_THICKNESS / 2);
   const wallHeight = CAR_HEIGHT;
 
@@ -515,6 +516,27 @@ function addSideWall(car, side, doorLeaves) {
         centre
       );
       car.add(headerLining);
+
+      // Door status light: a small fixture on the underside of the header,
+      // facing down into the saloon so a passenger standing at the door sees
+      // it. Starts off; Train.updateDoorLights() drives its actual colour.
+      const doorLightMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2a2a2c,
+        emissive: 0x000000,
+        emissiveIntensity: 0,
+        roughness: 0.5,
+      });
+      const doorLight = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.04, 0.22),
+        doorLightMaterial
+      );
+      doorLight.position.set(
+        x - side * WALL_THICKNESS * 0.55,
+        FLOOR_Y + DOOR_HEIGHT + 0.05,
+        centre
+      );
+      car.add(doorLight);
+      doorLights.push({ material: doorLightMaterial, side });
     }
 
     // White pillars either side of every doorway, and a white header band -
@@ -763,14 +785,14 @@ function addRoofGear(car, withPantograph) {
   car.add(panto);
 }
 
-function createCarriage({ cabEnd = 0 }, doorLeaves, wheels, cabs) {
+function createCarriage({ cabEnd = 0 }, doorLeaves, doorLights, wheels, cabs) {
   const car = new THREE.Group();
 
   addRunningGear(car, wheels);
   addInterior(car);
   addRoofGear(car, cabEnd === -1);
-  addSideWall(car, 1, doorLeaves);
-  addSideWall(car, -1, doorLeaves);
+  addSideWall(car, 1, doorLeaves, doorLights);
+  addSideWall(car, -1, doorLeaves, doorLights);
 
   // Roof shell, extruded from the same cross-section family as the sides so
   // the two actually meet instead of a cylinder sitting on a box.
@@ -962,16 +984,29 @@ export class Train {
     this.group.name = 'train';
 
     this.doorLeaves = [];
+    this.doorLights = [];
     this.wheels = [];
     this.cabs = [];
 
     // Double-ended unit: a cab at each extremity of the formation, so it can
     // run either way down the line without ever being turned.
-    const front = createCarriage({ cabEnd: 1 }, this.doorLeaves, this.wheels, this.cabs);
+    const front = createCarriage(
+      { cabEnd: 1 },
+      this.doorLeaves,
+      this.doorLights,
+      this.wheels,
+      this.cabs
+    );
     front.position.z = (CAR_LENGTH + CAR_GAP) / 2;
     this.group.add(front);
 
-    const rear = createCarriage({ cabEnd: -1 }, this.doorLeaves, this.wheels, this.cabs);
+    const rear = createCarriage(
+      { cabEnd: -1 },
+      this.doorLeaves,
+      this.doorLights,
+      this.wheels,
+      this.cabs
+    );
     rear.position.z = -(CAR_LENGTH + CAR_GAP) / 2;
     this.group.add(rear);
 
@@ -984,6 +1019,8 @@ export class Train {
     this.doorOpen = 1; // 0 shut, 1 fully open
     this.state = 'dwell';
     this.timer = DWELL_SECONDS;
+    this.doorLightFlashTimer = 0;
+    this.doorLightFlashOn = false;
 
     this.group.position.z = STATIONS[this.stationIndex].z;
 
@@ -993,6 +1030,7 @@ export class Train {
     this.applyDoors();
     this.applyLights();
     this.updateDestinationBoards();
+    this.updateDoorLights(0);
   }
 
   // White at the leading cab, red at the trailing one. Because the unit is
@@ -1048,6 +1086,47 @@ export class Train {
       const travel = side === platformSide ? this.doorOpen * maxTravel : 0;
       leaf.position.z = closedZ + direction * travel;
       window.position.z = leaf.position.z;
+    }
+  }
+
+  // Orange while a door is open or opening, flashing red while it is
+  // closing, off once shut. Mirrors applyDoors()'s side gating exactly: a
+  // light only ever lights up on the side matching the current station's
+  // platform, since that is the only side actually doing anything.
+  updateDoorLights(delta) {
+    const platformSide = this.currentStation.platformSide;
+
+    let mode;
+    if (this.state === 'opening' || this.state === 'dwell') mode = 'orange';
+    else if (this.state === 'closing') mode = 'flashing-red';
+    else mode = 'off';
+
+    if (mode === 'flashing-red') {
+      this.doorLightFlashTimer += delta;
+      if (this.doorLightFlashTimer >= DOOR_LIGHT_FLASH_INTERVAL) {
+        this.doorLightFlashTimer -= DOOR_LIGHT_FLASH_INTERVAL;
+        this.doorLightFlashOn = !this.doorLightFlashOn;
+      }
+    } else {
+      this.doorLightFlashTimer = 0;
+      this.doorLightFlashOn = false;
+    }
+
+    for (const { material, side } of this.doorLights) {
+      if (side !== platformSide) {
+        material.emissiveIntensity = 0;
+        continue;
+      }
+
+      if (mode === 'orange') {
+        material.emissive.setHex(0xff8c1a);
+        material.emissiveIntensity = 1.3;
+      } else if (mode === 'flashing-red') {
+        material.emissive.setHex(0xff2020);
+        material.emissiveIntensity = this.doorLightFlashOn ? 1.6 : 0;
+      } else {
+        material.emissiveIntensity = 0;
+      }
     }
   }
 
@@ -1116,6 +1195,7 @@ export class Train {
     }
 
     this.applyDoors();
+    this.updateDoorLights(delta);
 
     this.updateDestinationBoards();
 

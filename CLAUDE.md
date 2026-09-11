@@ -226,6 +226,25 @@ verified by flipping it at runtime and confirming boarding swaps sides - but
 station would open the right doors onto empty ballast until the platform
 geometry is mirrored too. That mirroring is separate, not-yet-done work.
 
+### Door status lights
+
+One small emissive fixture per door, mounted on the underside of the header
+inside the saloon, in `Train.doorLights` (built alongside the leaves in
+`addSideWall()`, tagged with `side` the same way). `Train.updateDoorLights()`
+drives them from `this.state`:
+
+```
+'opening' or 'dwell'  -> orange, steady   (door open or opening)
+'closing'             -> red, flashing at DOOR_LIGHT_FLASH_INTERVAL
+anything else         -> off              (door shut)
+```
+
+Gating is identical to `applyDoors()`/`colliders()`: a light only ever lights
+up on the side matching `currentStation.platformSide`, so the side that never
+opens at this stop stays dark regardless of `state`. Verified by flipping
+`platformSide` at runtime - the same six fixtures that were lit went dark and
+the other six lit up, matching which doors actually move.
+
 ## Level crossings and sound
 
 `Crossing` (in `src/crossing.js`) protects a point on the line. Each frame it
