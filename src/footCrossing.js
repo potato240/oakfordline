@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RAIL_TOP_Y, BALLAST_HEIGHT } from './layout.js';
 
 // A pedestrian footpath crossing next to a station: two swinging gates and a
 // red/green signal, tied directly to whether a train is inbound to or present
@@ -11,37 +12,104 @@ import * as THREE from 'three';
 // path's width in Z, blocking it).
 
 const PATH_HALF_WIDTH = 1.1; // the footpath is 2.2m wide
-const GATE_POST_X = 2.1; // how far out from the track centre each gate stands
+
+// The ballast mound's top surface is 2.4m either side of the rails (see
+// track.js) - the deck has to span at least that to bridge it, and the gate
+// posts have to stand clear beyond it, or they end up planted on the slope.
+const DECK_HALF_WIDTH = 2.6;
+const GATE_POST_X = 3.35;
+
 const GATE_LENGTH = PATH_HALF_WIDTH * 2 + 0.25; // reaches right across the path
 const GATE_SWING_SECONDS = 1.1;
-const FENCE_LENGTH = 3.2;
-
-// Closed the moment a train is inbound to this station or still present at
-// it; open again the instant it departs. No distance thresholds - the
-// crossing sits right next to the platform, so "is this train's business
-// with this station finished" is the correct question, not "how far away".
+const FENCE_LENGTH = 3.0;
 
 const materials = {
-  post: new THREE.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.6 }),
-  gateWhite: new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }),
-  gateRed: new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }),
+  post: new THREE.MeshStandardMaterial({ color: 0xdcd6c8, roughness: 0.55 }),
+  gateWhite: new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.55 }),
+  gateRed: new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.55 }),
   fence: new THREE.MeshStandardMaterial({ color: 0x5a4632, roughness: 0.9 }),
   path: new THREE.MeshStandardMaterial({ color: 0x8c8577, roughness: 1 }),
-  signalHousing: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.6 }),
+  kerb: new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 0.85 }),
+  deck: new THREE.MeshStandardMaterial({ color: 0x4a4238, roughness: 0.95 }),
+  signalHousing: new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.5, metalness: 0.2 }),
+  signPost: new THREE.MeshStandardMaterial({ color: 0x2a2a2c, roughness: 0.6 }),
 };
 
-function createFence(x, z) {
-  const fence = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.9, FENCE_LENGTH),
-    materials.fence
-  );
-  fence.position.set(x, 0.45, z);
-  fence.castShadow = true;
-  return fence;
+// "STOP LOOK LISTEN" warning sign, drawn to a canvas the same way the station
+// name boards are - cheap and sharp compared to modelling letterforms.
+function createWarningSignTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 384;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#f4f0e2';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(10, 10, canvas.width - 20, canvas.height - 20);
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 76px Georgia, serif';
+  ctx.fillText('STOP', canvas.width / 2, 118);
+  ctx.font = 'bold 62px Georgia, serif';
+  ctx.fillText('LOOK', canvas.width / 2, 210);
+  ctx.fillText('LISTEN', canvas.width / 2, 296);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.anisotropy = 8;
+  return texture;
 }
 
-// One gate assembly: a hinge post, a red/white swinging arm, and a small
-// pedestrian signal (red over green) mounted on the same post.
+let warningTexture = null;
+function warningSignMaterial() {
+  if (!warningTexture) warningTexture = createWarningSignTexture();
+  return new THREE.MeshStandardMaterial({ map: warningTexture, roughness: 0.7 });
+}
+
+function createFence(x, z) {
+  const group = new THREE.Group();
+
+  for (const railY of [0.35, 0.75]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, FENCE_LENGTH), materials.fence);
+    rail.position.y = railY;
+    rail.castShadow = true;
+    group.add(rail);
+  }
+
+  for (const localZ of [-FENCE_LENGTH / 2, 0, FENCE_LENGTH / 2]) {
+    const stake = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.08), materials.fence);
+    stake.position.set(0, 0.45, localZ);
+    stake.castShadow = true;
+    group.add(stake);
+  }
+
+  group.position.set(x, 0, z);
+  return group;
+}
+
+// A small warning sign on its own short post, standing beside the gate.
+function createWarningSign(x, z) {
+  const group = new THREE.Group();
+
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.3, 8), materials.signPost);
+  post.position.y = 0.65;
+  post.castShadow = true;
+  group.add(post);
+
+  const board = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.42, 0.04), warningSignMaterial());
+  board.position.y = 1.32;
+  board.castShadow = true;
+  group.add(board);
+
+  group.position.set(x, 0, z);
+  return group;
+}
+
+// One gate assembly: a hinge post carrying a pedestrian signal, and a
+// swinging gate built as a proper frame (top and bottom rail, pickets, a
+// diagonal brace) rather than a single flat plank.
 function createGate(side, lamps) {
   const assembly = new THREE.Group();
 
@@ -49,69 +117,112 @@ function createGate(side, lamps) {
   // The gate hinges at the -Z edge of the path and swings across to +Z.
   const hingeZ = -PATH_HALF_WIDTH;
 
-  const post = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.07, 0.09, 1.3, 10),
-    materials.post
-  );
-  post.position.y = 0.65;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.7, 10), materials.post);
+  post.position.y = 0.85;
   post.castShadow = true;
   assembly.add(post);
 
-  // Pedestrian signal: a small dark housing with a red lamp above a green one.
-  const housing = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.4, 0.12), materials.signalHousing);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), materials.post);
+  cap.position.y = 1.7;
+  assembly.add(cap);
+
+  // Pedestrian signal: a hooded housing with a red lamp above a green one,
+  // each lamp getting a small visor so it reads as a real signal head rather
+  // than two flat discs stuck to a box.
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.5, 0.16), materials.signalHousing);
   housing.position.y = 1.55;
+  housing.castShadow = true;
   assembly.add(housing);
+
+  const hood = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.22), materials.signalHousing);
+  hood.position.y = 1.79;
+  assembly.add(hood);
 
   const redLampMaterial = new THREE.MeshStandardMaterial({
     color: 0x4a1512,
     emissive: 0xff2a1a,
     emissiveIntensity: 0,
-    roughness: 0.4,
+    roughness: 0.35,
   });
   const greenLampMaterial = new THREE.MeshStandardMaterial({
     color: 0x123d1a,
     emissive: 0x2adf4a,
     emissiveIntensity: 0,
-    roughness: 0.4,
+    roughness: 0.35,
   });
 
-  const redLamp = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 12), redLampMaterial);
-  redLamp.rotation.x = Math.PI / 2;
-  redLamp.position.set(0, 1.66, 0.07);
-  assembly.add(redLamp);
+  for (const [material, y] of [[redLampMaterial, 1.68], [greenLampMaterial, 1.44]]) {
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 14), material);
+    lamp.rotation.x = Math.PI / 2;
+    lamp.position.set(0, y, 0.09);
+    assembly.add(lamp);
 
-  const greenLamp = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.06, 12), greenLampMaterial);
-  greenLamp.rotation.x = Math.PI / 2;
-  greenLamp.position.set(0, 1.44, 0.07);
-  assembly.add(greenLamp);
+    const visor = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.06, 14, 1, true, 0, Math.PI), materials.signalHousing);
+    visor.rotation.set(0, 0, Math.PI / 2);
+    visor.position.set(0, y + 0.05, 0.09);
+    assembly.add(visor);
+  }
 
   lamps.push({ red: redLampMaterial, green: greenLampMaterial });
 
-  // The swinging arm. Geometry is shifted so its pivot end sits at the origin
-  // and it extends towards +Z, so rotating the pivot about Y swings it
-  // between lying along X (open) and spanning across Z (closed).
+  // The swinging gate. Geometry is shifted so the hinge end sits at the
+  // pivot's origin and it extends towards +Z, so rotating the pivot about Y
+  // swings it between lying along X (open) and spanning across Z (closed).
   const pivot = new THREE.Group();
   pivot.position.set(0, 0, hingeZ);
 
-  const armGeometry = new THREE.BoxGeometry(0.06, 0.9, GATE_LENGTH);
-  armGeometry.translate(0, 0, GATE_LENGTH / 2);
-  const arm = new THREE.Mesh(armGeometry, materials.gateWhite);
-  arm.position.y = 0.75;
-  arm.castShadow = true;
-  pivot.add(arm);
-
-  for (let i = 0; i < 2; i++) {
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.16, 0.5), materials.gateRed);
-    band.position.set(0, 0.75, 0.45 + i * 0.9);
-    pivot.add(band);
+  function railGeometry(length) {
+    const geometry = new THREE.BoxGeometry(0.06, 0.07, length);
+    geometry.translate(0, 0, length / 2);
+    return geometry;
   }
+
+  const topRail = new THREE.Mesh(railGeometry(GATE_LENGTH), materials.gateWhite);
+  topRail.position.y = 0.95;
+  topRail.castShadow = true;
+  pivot.add(topRail);
+
+  const bottomRail = new THREE.Mesh(railGeometry(GATE_LENGTH), materials.gateWhite);
+  bottomRail.position.y = 0.25;
+  bottomRail.castShadow = true;
+  pivot.add(bottomRail);
+
+  // Pickets between the rails, red and white in alternating pairs so the
+  // gate reads clearly as a hazard barrier rather than a garden fence.
+  const picketCount = 5;
+  for (let i = 0; i < picketCount; i++) {
+    const z = (GATE_LENGTH / picketCount) * (i + 0.5);
+    const picket = new THREE.Mesh(
+      new THREE.BoxGeometry(0.045, 0.72, 0.06),
+      i % 2 === 0 ? materials.gateWhite : materials.gateRed
+    );
+    picket.position.set(0, 0.6, z);
+    picket.castShadow = true;
+    pivot.add(picket);
+  }
+
+  // Diagonal brace, hinge corner to the far top corner - what makes a gate
+  // read as load-bearing rather than a fence panel stood on its side.
+  const braceLength = Math.hypot(GATE_LENGTH, 0.7);
+  const brace = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.045, braceLength), materials.gateWhite);
+  brace.position.set(0, 0.6, GATE_LENGTH / 2);
+  brace.rotation.x = Math.atan2(0.7, GATE_LENGTH);
+  pivot.add(brace);
+
+  // Red end post at the free (latching) end, for visibility when closed.
+  const endPost = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, 0.08), materials.gateRed);
+  endPost.position.set(0, 0.6, GATE_LENGTH);
+  endPost.castShadow = true;
+  pivot.add(endPost);
 
   assembly.add(pivot);
   assembly.position.set(postX, 0, 0);
 
-  // Short fence stubs either side of the post, so the gate reads as part of
-  // a boundary rather than standing alone in open ground.
-  assembly.add(createFence(postX, hingeZ - FENCE_LENGTH / 2 - 0.1));
+  // Fencing running away from the gate on the hinge side, so it reads as
+  // part of a boundary rather than standing alone in open ground, plus a
+  // warning sign facing anyone approaching the crossing.
+  assembly.add(createFence(postX, hingeZ - FENCE_LENGTH / 2 - 0.15));
+  assembly.add(createWarningSign(postX + side * 0.6, hingeZ - 0.3));
 
   return { assembly, pivot, side };
 }
@@ -130,14 +241,39 @@ export class FootCrossing {
     this.group.name = `footcrossing:${station.name}`;
     this.group.position.z = this.z;
 
-    // Path deck, just for visual continuity across the ballast.
-    const path = new THREE.Mesh(
-      new THREE.BoxGeometry(GATE_POST_X * 2 + 1.4, 0.05, PATH_HALF_WIDTH * 2),
-      materials.path
+    // Raised deck bridging the ballast mound up to railhead height, the same
+    // technique the road crossing uses - a flat path slab at ground level
+    // would sit half a metre below the actual rails and look like the
+    // ballast were punching straight through it.
+    const deck = new THREE.Mesh(
+      new THREE.BoxGeometry(DECK_HALF_WIDTH * 2, RAIL_TOP_Y - BALLAST_HEIGHT + 0.05, PATH_HALF_WIDTH * 2),
+      materials.deck
     );
-    path.position.y = 0.025;
-    path.receiveShadow = true;
-    this.group.add(path);
+    deck.position.y = BALLAST_HEIGHT + (RAIL_TOP_Y - BALLAST_HEIGHT) / 2;
+    deck.receiveShadow = true;
+    this.group.add(deck);
+
+    // Level path either side of the deck, out to the gates.
+    for (const side of [-1, 1]) {
+      const pathLength = GATE_POST_X - DECK_HALF_WIDTH + 0.6;
+      const path = new THREE.Mesh(
+        new THREE.BoxGeometry(pathLength, 0.06, PATH_HALF_WIDTH * 2),
+        materials.path
+      );
+      path.position.set(side * (DECK_HALF_WIDTH + pathLength / 2 - 0.05), 0.03, 0);
+      path.receiveShadow = true;
+      this.group.add(path);
+    }
+
+    // Kerb boards along both edges, tying the deck and path together visually.
+    for (const edgeZ of [-PATH_HALF_WIDTH, PATH_HALF_WIDTH]) {
+      const kerb = new THREE.Mesh(
+        new THREE.BoxGeometry(GATE_POST_X * 2 + 0.4, 0.1, 0.1),
+        materials.kerb
+      );
+      kerb.position.set(0, RAIL_TOP_Y * 0.35, edgeZ);
+      this.group.add(kerb);
+    }
 
     this.lamps = [];
     this.gates = [];

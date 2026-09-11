@@ -361,6 +361,15 @@ pedestrian lamps and the gate's own collider both key off the same
 `closed`/`swing` state, so a "closed" gate is never visually shut while still
 walkable.
 
+**The first version sat well below the actual track.** Its path deck was a
+flat slab near `y = 0.025`, but the real railhead (`RAIL_TOP_Y`) sits at
+`0.5` - the ballast mound and rails would have risen straight up through it.
+The deck now bridges from ballast height to railhead height the same way the
+road crossing's does, and the gate posts moved out to `x = 3.35`, clear of
+the ballast's 2.4m-wide top surface they used to stand on top of. Both are
+verified directly: deck top measures `0.525` against a `0.5` railhead - the
+same small proud margin the road crossing uses.
+
 ## The visible body
 
 Hands and boots only, no connecting limbs. The two halves live in **different
