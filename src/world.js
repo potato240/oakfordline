@@ -109,16 +109,6 @@ export function buildWorld() {
     for (const box of stationColliders(station.z)) colliders.add(box);
   }
 
-  // A pedestrian footpath crossing just beyond the end of each platform.
-  const FOOT_CROSSING_OFFSET = PLATFORM_LENGTH / 2 + 10;
-  const footCrossings = STATIONS.map(
-    (station) => new FootCrossing(station, FOOT_CROSSING_OFFSET)
-  );
-  for (const footCrossing of footCrossings) {
-    scene.add(footCrossing.group);
-    for (const box of footCrossing.colliders()) colliders.add(box);
-  }
-
   const train = new Train();
   scene.add(train.group);
   for (const box of train.colliders()) colliders.add(box);
@@ -132,6 +122,15 @@ export function buildWorld() {
   for (const crossing of crossings) {
     scene.add(crossing.group);
     for (const box of crossing.colliders()) colliders.add(box);
+  }
+
+  // A pedestrian footpath running alongside each road crossing, sharing its
+  // signal posts and its open/closed state - one per crossing, not one per
+  // station.
+  const footCrossings = crossings.map((crossing) => new FootCrossing(crossing));
+  for (const footCrossing of footCrossings) {
+    scene.add(footCrossing.group);
+    for (const box of footCrossing.colliders()) colliders.add(box);
   }
 
   // Standing surface under the player. The train wins over the platform, so

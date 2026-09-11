@@ -50,7 +50,10 @@ startButton.addEventListener('click', () => {
   startAudio();
   player.lock();
 });
-player.controls.addEventListener('lock', enterGame);
+player.controls.addEventListener('lock', () => {
+  lockFailures = 0;
+  enterGame();
+});
 
 player.controls.addEventListener('unlock', () => {
   if (player.dragLook) return;
@@ -58,9 +61,21 @@ player.controls.addEventListener('unlock', () => {
   crosshair.classList.remove('visible');
 });
 
-// Some embedded browsers refuse pointer lock outright. Rather than leaving the
-// start button looking broken, fall back to drag-to-look and say so.
+// Real browsers can reject a pointer lock request for reasons that have
+// nothing to do with support - most commonly, Chrome enforces a short
+// cooldown (~1.25s) after Escape is pressed to exit a lock, and rejects any
+// new request made inside that window. Treating the very first failure as
+// permanent used to lock a player into drag-look for the rest of the session
+// over what was often just bad timing. Only genuinely unsupported
+// environments (the embedded preview pane included) fail on every attempt,
+// so only give up after a second consecutive failure - the overlay and
+// button stay up in between, so retrying is just clicking Play again.
+let lockFailures = 0;
+
 document.addEventListener('pointerlockerror', () => {
+  lockFailures++;
+  if (lockFailures < 2) return;
+
   player.enableDragLook(renderer.domElement);
   enterGame();
   hint.textContent =
@@ -120,7 +135,9 @@ renderer.setAnimationLoop(() => {
   body.update(position, bodyEuler.y, stepped, delta);
 
   for (const crossing of crossings) crossing.update(delta, train, position);
-  for (const footCrossing of footCrossings) footCrossing.update(delta, train);
+  // Reads state the crossings above already computed this frame - no own
+  // timers, no train/player args needed.
+  for (const footCrossing of footCrossings) footCrossing.update();
 
   // Find the closest seat in reach, for the "Press E to sit" prompt and for
   // KeyE to act on. Skipped entirely while already seated - standing up is

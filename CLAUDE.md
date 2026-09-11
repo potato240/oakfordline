@@ -26,10 +26,10 @@ Early scaffold. What exists today:
   it never turns; marker lights show white at the leading end, red at the
   trailing one, and swap over at each terminus.
 - Seven level crossings on the line, with lowering booms, alternately flashing
-  red lamps, and a bell synthesised at runtime.
-- A pedestrian footpath crossing beside each station, with two swinging gates
-  and red/green lights. Closes the moment a train is inbound to that
-  station, opens the moment it departs.
+  red lamps, and a bell synthesised at runtime. Each one also carries a
+  pedestrian footpath alongside it, with two swinging gates that open away
+  from the track and red/green lights mounted on the crossing's own posts -
+  directly linked to the road crossing's state, not a separate timer.
 - Three pairs of sliding doors on **both** sides of each car. Only the side
   matching the current station's platform actually opens - which side that
   is comes from `STATIONS[].platformSide`, not a fixed side, so a future
@@ -320,55 +320,52 @@ Browsers refuse to start an `AudioContext` without a user gesture, so
 anywhere else leaves the context `suspended` and the game silent. Bell volume
 falls off with the player's distance from the crossing.
 
-### Footpath crossings are station-state driven, not distance driven
+### Footpath crossings are attached to a road crossing, not a station
 
-`FootCrossing` (`src/footCrossing.js`) is a separate class from the road
-`Crossing`, on purpose - it answers a different question. A road crossing out
-on the open line asks "is a train nearby, on my leg, right now" (distance).
-A footpath crossing sitting right next to a platform should ask "does this
-train have unfinished business with *this specific station*" - a station
-question, not a geometry one:
+`FootCrossing` (`src/footCrossing.js`) used to be independent of the road
+`Crossing` - its own posts, its own state machine keyed to which station a
+train was heading for. That was wrong for what it is: a real footpath
+alongside a road crossing shares that crossing's protection. One warning
+covers both, so the footpath should not be deciding anything of its own - it
+should just be told what the road crossing is already doing.
 
 ```js
-const inbound = train.nextStation === this.station && train.state === 'running';
-const present = train.currentStation === this.station && train.state !== 'running';
-this.closed = inbound || present;
+// FootCrossing.update() - no delta, no train, no timers of its own
+applyGates() {
+  const swing = this.crossing.lowered;   // read straight from the road crossing
+  ...
+}
+applyLamps() {
+  const closed = this.crossing.active;   // same
+  ...
+}
 ```
 
-`this.station` is kept by **reference** to the actual entry in `STATIONS`
-(not copied, not compared by name or z), so it compares directly against
-whatever `train.currentStation` / `train.nextStation` return - those getters
-read `STATIONS[stationIndex]` / `STATIONS[targetIndex]` from the same array,
-so it's the same object.
+`this.crossing` is the actual `Crossing` instance, kept by reference. There
+is no independent easing, no independent approach/clear window - the
+footpath's lamps and gates are a direct function of fields the road crossing
+already computed that frame. Built one per road crossing (`crossings.map`),
+not one per station: 7 now, not 8. Verified by running a real train past a
+crossing: the pedestrian lamp flips red and back to green in the **same
+frame** the road crossing's own `active` flag does, across a full approach
+and departure.
 
-This closes the gate the instant the train starts running towards the
-station (before it's anywhere close) and reopens it the instant the train
-departs (`state` flips from `closing` to `running`) - no warning distance to
-tune, and no risk of the "on this leg" bug the road crossings needed, because
-there's no leg math here at all. Verified by stepping the whole state machine:
-the departure station's gate swings open and the next station's gate starts
-swinging shut in the very same frame the train's state becomes `running`.
+**The signal lamps are children of the crossing's own post mesh** -
+`createBarrier()` in `crossing.js` now returns `post` alongside its existing
+fields so `addPedestrianSignal()` can call `post.add(...)`, genuinely mounting
+onto the same physical object the road's own flashing lamps sit on, not a
+lookalike built to stand nearby. The footpath itself runs parallel to the
+road, offset by `FOOTPATH_Z` clear of the carriageway, and its gates line up
+with the road barriers in X by reusing `barrier.postX` directly rather than
+an independently chosen distance.
 
-One crossing per station (`STATIONS.map`), positioned `PLATFORM_LENGTH/2 + 10`
-beyond the platform's end - direction doesn't matter, since which side of the
-station it sits on has no bearing on the station-state logic above, unlike a
-distance-based trigger where geometry would matter.
-
-Gates are two swinging arms (not lifting booms like the road crossings) -
-each hinges at a post and rotates about **Y**, between lying along X (open,
-folded flat) and along Z (closed, spanning the 2.2m footpath). The red/green
-pedestrian lamps and the gate's own collider both key off the same
-`closed`/`swing` state, so a "closed" gate is never visually shut while still
-walkable.
-
-**The first version sat well below the actual track.** Its path deck was a
-flat slab near `y = 0.025`, but the real railhead (`RAIL_TOP_Y`) sits at
-`0.5` - the ballast mound and rails would have risen straight up through it.
-The deck now bridges from ballast height to railhead height the same way the
-road crossing's does, and the gate posts moved out to `x = 3.35`, clear of
-the ballast's 2.4m-wide top surface they used to stand on top of. Both are
-verified directly: deck top measures `0.525` against a `0.5` railhead - the
-same small proud margin the road crossing uses.
+**Gates swing away from the track when opening, not across it or into it** -
+worth calling out because the first version had this backwards: `openAngle`
+was `side > 0 ? -PI/2 : PI/2`, which swung each gate's tip *toward* the
+centreline. Flipping the ternary sends the +X gate's tip further +X and the
+-X gate's tip further -X. Verified directly: with the hinge fixed at
+`x = ±5.6`, the open tip lands at `x = ±8.05` - further from the track, not
+closer.
 
 ## The visible body
 
