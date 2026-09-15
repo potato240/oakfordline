@@ -39,6 +39,11 @@ Early scaffold. What exists today:
   Halt**, **Wexley**, **Marsden Cross**, **Kingsford**, **Ashcombe**,
   **Thornleigh**, **Portmead**. The train calls at each in turn, reverses at
   the terminus and works back. A round trip is about eleven minutes.
+- A second, branch line, leaving the main line on its own new platform at
+  **Marsden Cross** and its own new platform at **Kingsford**, then curving
+  away out to two stops the main line never reaches: **Fenwick Bridge** and
+  **Redgate**. Its own single-car railcar (green/cream livery) shuttles the
+  branch independently of the main train. See "The branch line" below.
 - Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
   run. The player stands on the platform deck, or on the saloon floor.
@@ -70,10 +75,12 @@ rather than falling onto them.
 | `src/main.js`    | Renderer, camera, pointer-lock wiring, animation loop. |
 | `src/world.js`   | Scene assembly — sky, ground, lights, height lookup.   |
 | `src/layout.js`  | Shared dimensions everything aligns to. Edit here.     |
-| `src/track.js`   | Ballast, sleepers, rails.                              |
+| `src/track.js`   | Ballast, sleepers, rails; `createTrackAlongPath()` for the curved branch. |
 | `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
+| `src/branchLayout.js` | Branch route: waypoints, stops, the `RailPath` curve-distance helper. |
+| `src/branchTrain.js`  | Single-car branch railcar: geometry and its own running state machine. |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
@@ -114,7 +121,7 @@ npm run build
   applying per-frame constants.
 - The animation loop clamps `delta` to 0.1s so a backgrounded tab does not
   teleport the player on return.
-- `buildWorld()` returns `{ scene, heightAt, train, crossings, colliders }`.
+- `buildWorld()` returns `{ scene, heightAt, train, branchTrain, crossings, colliders, seats }`.
   `heightAt(x, z)` is the standing surface under the player; `colliders` is
   what stops them walking through things. The two are separate on purpose:
   height handles what you stand *on*, collision handles what you bump *into*.
@@ -150,6 +157,100 @@ drops the player to ground level mid-stride.
 Doors are two leaves per opening, positioned from `doorOpen` (0 shut, 1 open)
 in `applyDoors()`. They are visual only — nothing blocks a player walking
 through a shut door yet.
+
+## The branch line
+
+The main line is dead straight along Z, so it only ever needed a scalar
+distance (`STATIONS[].z`, or `train.group.position.z`) to describe where
+anything is. The branch actually curves, which the rest of the codebase has
+no concept of - so it gets its own small path abstraction rather than
+stretching the main line's assumptions to cover it.
+
+**`src/branchLayout.js`** is the single source of truth for the route:
+
+- `BRANCH_WAYPOINTS` — the route as a polyline. There is no spline library in
+  this project; a "curve" is just several short straight segments meeting at
+  slightly different headings, matching the low-poly style everything else
+  here already uses (`createTrackAlongPath()` in `track.js` builds real track
+  geometry the same way).
+- The curve itself is a **reverse S** — a quarter-turn one way immediately
+  followed by an equal quarter-turn back — not a single bend to a new
+  heading. That is deliberate: an S-curve returns to exactly the heading it
+  started at (due south, `dirX=0, dirZ=-1`), so the branch hands back onto a
+  plain Z-aligned straight before it reaches Fenwick Bridge or Redgate.
+  Z-aligned stations can reuse `station.js` completely unmodified (see
+  below) - no rotated geometry, and no need to extend the collision system
+  (`collision.js`) to handle rotated boxes for something that only ever sits
+  still.
+- `BRANCH_X = 70` (the parallel section's distance out from the main line) is
+  not an aesthetic choice - it is the smallest value that clears every
+  existing road crossing's `ROAD_HALF_LENGTH = 60` in `crossing.js`,
+  regardless of which crossing the branch happens to run near in Z. Anything
+  smaller would clip a crossing's road deck somewhere along the route.
+- **`class RailPath`** turns the waypoint list into the same role
+  `STATIONS[i].z` plays for the main line, generalised to a curve:
+  `positionAt(distance)` returns `{x, z, heading}`, `distanceAt(waypoint)`
+  finds a station's distance along the route, and `distanceToPoint(x, z)`
+  gives the shortest distance from any point to the path — this last one is
+  what makes "keep the corridor clear" possible on a curve at all, see below.
+  `BRANCH_PATH` is the ready-made instance everything else imports.
+
+**Trees and hills near the curve.** The main line's scenery clearance in
+`scenery.js` is a single "how far from `x = 0`" formula, which only works
+because the main line is straight. That cannot tell whether a point is clear
+of a *curved* corridor, so `createTrees()` and `createHills()` additionally
+reject any candidate with `BRANCH_PATH.distanceToPoint(x, z)` closer than the
+branch's own clearance - rejection sampling (a handful of retries per prop,
+falling back to hiding a tree far below ground rather than skipping its
+`InstancedMesh` slot, since every slot needs *some* matrix or it renders as a
+ghost prop at the world origin). This is the literal implementation of
+"always remove trees and mountains in the way of track" for a route whose
+"in the way" changes shape along its length, not just a straight-line offset.
+
+**`src/branchTrain.js`** is a second, independent train — a single-car,
+double-ended railcar in a distinct green/cream livery, deliberately simpler
+than the main EMU (no tumblehome bodyside, no interior seating hooked into
+the sit-down system). It reuses the shape of `Train`'s state machine
+(`dwell -> closing -> running -> opening`, a braking-distance run, reversal
+at each end) but generalised from "a scalar Z" to "a scalar distance along
+`BRANCH_PATH`", and every frame sets
+
+```js
+const { x, z, heading } = BRANCH_PATH.positionAt(this.distance);
+this.group.position.set(x, 0, z);
+this.group.rotation.y = heading;
+```
+
+`BranchTrain.contains(x, z)` cannot compare world X/Z directly the way the
+main `Train` does, because the branch train's heading actually changes along
+the curve - it rotates the query point into the train's own local frame
+first (`atan2`/`cos`/`sin` inverse of `rotation.y`) before testing it against
+the saloon's local bounds.
+
+**Riding and collision on a train that turns.** `main.js` tests
+`branchTrain.contains(x, z)` before calling `branchTrain.update(delta)`, same
+ordering as the main train, but carries the rider by the **{dx, dz}** the
+train actually moved this frame rather than a single Z delta, since the
+branch train moves in both axes while on the curve. Its wall colliders extend
+`collision.js` with a new `offsetX()` closure (alongside the existing
+`offset()` for Z), so a branch-train collider can translate in X as the train
+runs - but `offsetX()` still only **translates** a box, it cannot rotate one.
+That is an accepted, deliberate simplification: collision is exact at every
+station and on every straight section, and only approximate for the short
+stretch of actual curve, where the train's visible body banks into the turn
+but its collision boxes stay axis-aligned. Nothing else in the scene uses
+`offsetX()`, so it is a no-op everywhere except the branch train.
+
+**Branch stations reuse `station.js` unmodified.** `createStation({name, z})`
+and `stationColliders(z)` are both built entirely around the module-level
+`PLATFORM_CENTRE_X`, on the assumption the track sits at `x = 0` — they never
+take an X position at all. Rather than teach `station.js` about a second
+track, `world.js` wraps each of `BRANCH_STATIONS`' four stops by setting
+`group.position.x = station.x` on the returned group, and shifting the
+matching colliders' `minX`/`maxX` by that same `station.x`. This only works
+because every branch station sits on the Z-aligned sections of the route (the
+whole reason for the reverse-S curve above) — a station on the curve itself
+would need rotated geometry this trick cannot provide.
 
 ## Window openings are real, not glass boxes on a solid sheet
 

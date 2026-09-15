@@ -26,7 +26,7 @@ const camera = new THREE.PerspectiveCamera(
   6000
 );
 
-const { scene, heightAt, train, crossings, colliders, seats } = buildWorld();
+const { scene, heightAt, train, branchTrain, crossings, colliders, seats } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt, colliders);
 scene.add(player.object);
 
@@ -103,7 +103,7 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player, train, crossings, colliders, body, seats };
+  window.game = { scene, camera, renderer, player, train, branchTrain, crossings, colliders, body, seats };
 }
 
 const sky = scene.getObjectByName('sky');
@@ -122,6 +122,17 @@ renderer.setAnimationLoop(() => {
   const aboard = train.contains(position.x, position.z);
   const travelled = train.update(delta, position);
   if (aboard) position.z += travelled;
+
+  // The branch train moves in X as well as Z (and turns) while on the curve,
+  // so its own passengers are carried by the raw {dx, dz} it moved this
+  // frame rather than a single scalar - the same idea as the main line's
+  // travelled distance, generalised off the straight.
+  const aboardBranch = branchTrain.contains(position.x, position.z);
+  const branchMoved = branchTrain.update(delta);
+  if (aboardBranch) {
+    position.x += branchMoved.dx;
+    position.z += branchMoved.dz;
+  }
 
   // Measure the player's own movement, after any ride on the train, so the
   // walk cycle does not animate while standing still in a moving carriage.

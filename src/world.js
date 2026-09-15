@@ -1,10 +1,12 @@
 import * as THREE from 'three';
-import { createTrack } from './track.js';
+import { createTrack, createTrackAlongPath } from './track.js';
 import { createStation, stationColliders } from './station.js';
 import { Train } from './train.js';
 import { createScenery } from './scenery.js';
 import { Crossing } from './crossing.js';
 import { Colliders } from './collision.js';
+import { BRANCH_WAYPOINTS, BRANCH_STATIONS } from './branchLayout.js';
+import { BranchTrain } from './branchTrain.js';
 import {
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
@@ -87,8 +89,18 @@ const halfWidth = PLATFORM_WIDTH / 2;
 const halfLength = PLATFORM_LENGTH / 2;
 
 function onAnyPlatform(x, z) {
-  if (Math.abs(x - PLATFORM_CENTRE_X) > halfWidth) return false;
-  return STATIONS.some((station) => Math.abs(z - station.z) <= halfLength);
+  if (Math.abs(x - PLATFORM_CENTRE_X) <= halfWidth) {
+    if (STATIONS.some((station) => Math.abs(z - station.z) <= halfLength)) return true;
+  }
+  // Branch platforms sit at whichever X that station's own stop on the
+  // branch route works out to (station.js is built around PLATFORM_CENTRE_X
+  // assuming the track is at x = 0, so it is wrapped with an X offset here
+  // rather than modified itself - see the branch station loop below).
+  return BRANCH_STATIONS.some(
+    (station) =>
+      Math.abs(x - (station.x + PLATFORM_CENTRE_X)) <= halfWidth &&
+      Math.abs(z - station.z) <= halfLength
+  );
 }
 
 export function buildWorld() {
@@ -112,6 +124,27 @@ export function buildWorld() {
   scene.add(train.group);
   for (const box of train.colliders()) colliders.add(box);
 
+  // The branch: its own track, its own four stops (station.js is built
+  // entirely around PLATFORM_CENTRE_X on the assumption the track sits at
+  // x = 0, so a branch stop just gets the whole station group and its
+  // colliders shifted by that stop's own track X - no changes to station.js
+  // itself, and no rotation needed since the branch line is Z-aligned again
+  // by the time it reaches any of its stations).
+  scene.add(createTrackAlongPath(BRANCH_WAYPOINTS));
+
+  for (const station of BRANCH_STATIONS) {
+    const group = createStation({ name: station.name, z: station.z });
+    group.position.x = station.x;
+    scene.add(group);
+    for (const box of stationColliders(station.z)) {
+      colliders.add({ ...box, minX: box.minX + station.x, maxX: box.maxX + station.x });
+    }
+  }
+
+  const branchTrain = new BranchTrain();
+  scene.add(branchTrain.group);
+  for (const box of branchTrain.colliders()) colliders.add(box);
+
   // Level crossings out on the line between the two stations.
   // Roughly midway between consecutive stops.
   const crossings = [-140, -420, -700, -980, -1260, -1540, -1820].map(
@@ -127,6 +160,7 @@ export function buildWorld() {
   // stepping through the doorway puts you on the saloon floor.
   function heightAt(x, z) {
     if (train.contains(x, z)) return FLOOR_Y;
+    if (branchTrain.contains(x, z)) return FLOOR_Y;
     if (onAnyPlatform(x, z)) return PLATFORM_HEIGHT;
     return 0;
   }
@@ -141,5 +175,5 @@ export function buildWorld() {
     getWorldZ: () => train.group.position.z + seat.car.position.z + seat.localZ,
   }));
 
-  return { scene, heightAt, train, crossings, colliders, seats };
+  return { scene, heightAt, train, branchTrain, crossings, colliders, seats };
 }

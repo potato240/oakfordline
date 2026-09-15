@@ -1,6 +1,13 @@
 // Axis-aligned box colliders resolved against the player as a circle in the
-// XZ plane. Boxes may carry a Z offset (so the train's walls move with it) and
-// an active() predicate (so a doorway is only solid while its doors are shut).
+// XZ plane. Boxes may carry a Z offset (so the train's walls move with it), an
+// X offset (offsetX() - for the branch train, which moves in X as well as Z;
+// unset on every other collider so this is a no-op everywhere else) and an
+// active() predicate (so a doorway is only solid while its doors are shut).
+// offsetX only ever translates a box - it cannot rotate one, so a branch-train
+// collider stays axis-aligned even while the train's visual body is banked
+// into the curve. That is an accepted approximation: exact at every station
+// and on every straight, only approximate for the short stretch of curve
+// itself.
 
 const PASSES = 2; // resolving twice settles corners where two boxes meet
 
@@ -28,7 +35,11 @@ export class Colliders {
         const minZ = box.minZ + offset;
         const maxZ = box.maxZ + offset;
 
-        const closestX = Math.min(Math.max(position.x, box.minX), box.maxX);
+        const offsetX = box.offsetX ? box.offsetX() : 0;
+        const minX = box.minX + offsetX;
+        const maxX = box.maxX + offsetX;
+
+        const closestX = Math.min(Math.max(position.x, minX), maxX);
         const closestZ = Math.min(Math.max(position.z, minZ), maxZ);
 
         const dx = position.x - closestX;
@@ -45,14 +56,14 @@ export class Colliders {
           position.z += (dz / distance) * push;
         } else {
           // Dead centre inside the box - eject along whichever wall is nearest.
-          const toMinX = position.x - box.minX;
-          const toMaxX = box.maxX - position.x;
+          const toMinX = position.x - minX;
+          const toMaxX = maxX - position.x;
           const toMinZ = position.z - minZ;
           const toMaxZ = maxZ - position.z;
           const smallest = Math.min(toMinX, toMaxX, toMinZ, toMaxZ);
 
-          if (smallest === toMinX) position.x = box.minX - radius;
-          else if (smallest === toMaxX) position.x = box.maxX + radius;
+          if (smallest === toMinX) position.x = minX - radius;
+          else if (smallest === toMaxX) position.x = maxX + radius;
           else if (smallest === toMinZ) position.z = minZ - radius;
           else position.z = maxZ + radius;
         }

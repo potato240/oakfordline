@@ -1,5 +1,13 @@
 import * as THREE from 'three';
 import { TRACK_LENGTH } from './layout.js';
+import { BRANCH_PATH } from './branchLayout.js';
+
+// The branch line curves, so "clear of the track" cannot be a single "how
+// far from x = 0" test the way it is for the dead-straight main line - a
+// tree or hill has to be checked against its actual distance to the nearest
+// point on the branch's own path instead.
+const BRANCH_CLEAR_HALF_WIDTH = 18; // matches the main line's CLEAR_HALF_WIDTH
+const BRANCH_HILL_CLEARANCE = 45; // matches the main line's CORRIDOR_CLEARANCE
 
 // Deterministic pseudo-random so the landscape is the same every load.
 function makeRandom(seed) {
@@ -31,11 +39,37 @@ function createTrees() {
 
   const random = makeRandom(20260818);
   const dummy = new THREE.Object3D();
+  const hideFarBelowGround = () => {
+    // Every InstancedMesh slot needs a matrix or it renders at the identity
+    // transform (a ghost tree at the world origin) - a tree that fails to
+    // find a clear spot goes far underground instead of skipping the index.
+    dummy.position.set(0, -500, 0);
+    dummy.scale.setScalar(0.001);
+    dummy.updateMatrix();
+  };
 
   for (let i = 0; i < TREE_COUNT; i++) {
-    const side = random() < 0.5 ? -1 : 1;
-    const x = side * (CLEAR_HALF_WIDTH + random() * 150);
-    const z = (random() - 0.5) * TRACK_LENGTH * 0.95;
+    let x, z;
+    let clear = false;
+
+    // The formula already keeps every candidate clear of the dead-straight
+    // main line by construction; only the branch's curved corridor needs
+    // rejection sampling, since a fixed formula cannot know where a curve
+    // bends to.
+    for (let attempt = 0; attempt < 10 && !clear; attempt++) {
+      const side = random() < 0.5 ? -1 : 1;
+      x = side * (CLEAR_HALF_WIDTH + random() * 150);
+      z = (random() - 0.5) * TRACK_LENGTH * 0.95;
+      clear = BRANCH_PATH.distanceToPoint(x, z) >= BRANCH_CLEAR_HALF_WIDTH;
+    }
+
+    if (!clear) {
+      hideFarBelowGround();
+      trunks.setMatrixAt(i, dummy.matrix);
+      canopies.setMatrixAt(i, dummy.matrix);
+      continue;
+    }
+
     const scale = 0.7 + random() * 0.9;
 
     dummy.position.set(x, 1.2 * scale, z);
@@ -84,8 +118,10 @@ function createHills() {
       const x = Math.cos(angle) * distance;
       const z = Math.sin(angle) * distance;
 
-      // Keep the whole cone clear of the track, which sits at x = 0.
+      // Keep the whole cone clear of the main line, which sits at x = 0...
       if (Math.abs(x) < radius + CORRIDOR_CLEARANCE) continue;
+      // ...and clear of the branch line's own (curved) path too.
+      if (BRANCH_PATH.distanceToPoint(x, z) < radius + BRANCH_HILL_CLEARANCE) continue;
 
       const hill = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7), material);
       hill.position.set(x, height / 2 - 4, z);
