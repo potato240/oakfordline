@@ -59,8 +59,12 @@ function buildSCurve(startX, startZ, radius, angleDeg, segmentsPerArc) {
   return points;
 }
 
+// 60 samples per arc (120 across the whole S-bend) is fine enough that the
+// track built from it - a single merged mesh per material in track.js, not
+// one mesh per segment - reads as a genuinely smooth curve rather than a
+// chain of visibly straight pieces, at no extra draw-call cost.
 const curveStart = { x: BRANCH_X, z: -1220 };
-const curvePoints = buildSCurve(curveStart.x, curveStart.z, 100, 42, 6);
+const curvePoints = buildSCurve(curveStart.x, curveStart.z, 100, 42, 60);
 const curveEnd = curvePoints[curvePoints.length - 1];
 
 export const BRANCH_WAYPOINTS = [

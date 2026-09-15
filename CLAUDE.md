@@ -79,7 +79,7 @@ rather than falling onto them.
 | `src/main.js`    | Renderer, camera, pointer-lock wiring, animation loop. |
 | `src/world.js`   | Scene assembly — sky, ground, lights, height lookup.   |
 | `src/layout.js`  | Shared dimensions everything aligns to. Edit here.     |
-| `src/track.js`   | Ballast, sleepers, rails; `createTrackAlongPath()` for the curved branch. |
+| `src/track.js`   | Ballast, sleepers, rails; `createTrackAlongPath()` builds the curved branch as one merged mesh per material. |
 | `src/station.js` | Platform, canopy, benches, lamps, signs, house.        |
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
@@ -173,10 +173,12 @@ stretching the main line's assumptions to cover it.
 **`src/branchLayout.js`** is the single source of truth for the route:
 
 - `BRANCH_WAYPOINTS` — the route as a polyline. There is no spline library in
-  this project; a "curve" is just several short straight segments meeting at
-  slightly different headings, matching the low-poly style everything else
-  here already uses (`createTrackAlongPath()` in `track.js` builds real track
-  geometry the same way).
+  this project; a "curve" is really just many short straight segments meeting
+  at slightly different headings, which is also how `createTrackAlongPath()`
+  in `track.js` builds the actual track geometry. The S-bend itself is
+  sampled at 60 points per arc (`buildSCurve(..., 60)`), fine enough that
+  the individual straight pieces are not visible - it reads as a real curve,
+  not a series of kinks.
 - The curve itself is a **reverse S** — a quarter-turn one way immediately
   followed by an equal quarter-turn back — not a single bend to a new
   heading. That is deliberate: an S-curve returns to exactly the heading it
@@ -198,6 +200,22 @@ stretching the main line's assumptions to cover it.
   gives the shortest distance from any point to the path — this last one is
   what makes "keep the corridor clear" possible on a curve at all, see below.
   `BRANCH_PATH` is the ready-made instance everything else imports.
+
+**A fine-grained polyline without a fine-grained draw-call cost.** 60 samples
+per arc means well over a hundred waypoint pairs for the branch's curve alone
+- one mesh per pair, the way the main line's own `createTrack()` works, would
+have made the branch far and away the most expensive thing in the scene (see
+"Repeated props use `InstancedMesh`" above; the whole scene otherwise sits
+around 410 draw calls). Instead `createTrackAlongPath()` builds each piece's
+ballast and rail geometry, applies that piece's own position/rotation
+directly to the geometry (not the mesh), and merges all of them with
+`mergeGeometries()` (`three/addons/utils/BufferGeometryUtils.js`) into one
+ballast mesh and one rails mesh for the *entire* path - exactly one draw call
+per material no matter how many waypoints the curve is sampled at. Sleepers
+were already instanced per piece; they are now one `InstancedMesh` for the
+whole path instead, with a `sleeperCursor` that carries the running
+distance-since-last-sleeper across waypoint pairs so the rhythm stays even
+across a join instead of resetting (and visibly bunching) at every one.
 
 **Trees and hills near the curve.** The main line's scenery clearance in
 `scenery.js` is a single "how far from `x = 0`" formula, which only works

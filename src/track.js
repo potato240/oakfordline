@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   TRACK_GAUGE,
   TRACK_LENGTH,
@@ -94,75 +95,47 @@ export function createTrack() {
   return track;
 }
 
-// One straight run of ballast + sleepers + rails, `length` long, centred on
-// its own local origin along Z the same way the main line's pieces are -
-// callers position and rotate the returned group to lay it along whichever
-// segment of a curved path it belongs to.
-function createTrackSegment(length) {
-  const segment = new THREE.Group();
-
-  // Same trapezoidal profile as the main line's ballast, extruded to this
-  // segment's own length instead of the fixed TRACK_LENGTH.
+// Same trapezoidal ballast profile as the main line's, but as a standalone
+// helper so it can be built once per waypoint pair and merged, rather than
+// built once for the whole fixed TRACK_LENGTH.
+function ballastShape() {
   const shape = new THREE.Shape();
   shape.moveTo(-3.4, 0);
   shape.lineTo(3.4, 0);
   shape.lineTo(2.4, BALLAST_HEIGHT);
   shape.lineTo(-2.4, BALLAST_HEIGHT);
   shape.closePath();
-  const ballastGeometry = new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false });
-  ballastGeometry.translate(0, 0, -length / 2);
-
-  const ballast = new THREE.Mesh(
-    ballastGeometry,
-    new THREE.MeshStandardMaterial({ color: 0x6b6560, roughness: 1 })
-  );
-  ballast.receiveShadow = true;
-  segment.add(ballast);
-
-  const sleeperCount = Math.max(1, Math.floor(length / SLEEPER_SPACING));
-  const sleepers = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(2.6, SLEEPER_HEIGHT, 0.26),
-    new THREE.MeshStandardMaterial({ color: 0x4a3b2f, roughness: 0.95 }),
-    sleeperCount
-  );
-  const dummy = new THREE.Object3D();
-  const sleeperY = BALLAST_HEIGHT + SLEEPER_HEIGHT / 2;
-  for (let i = 0; i < sleeperCount; i++) {
-    dummy.position.set(0, sleeperY, -length / 2 + i * SLEEPER_SPACING);
-    dummy.rotation.y = Math.sin(i * 12.9898) * 0.01;
-    dummy.updateMatrix();
-    sleepers.setMatrixAt(i, dummy.matrix);
-  }
-  sleepers.castShadow = true;
-  sleepers.receiveShadow = true;
-  segment.add(sleepers);
-
-  const railGeometry = new THREE.BoxGeometry(0.09, RAIL_HEIGHT, length);
-  const railMaterial = new THREE.MeshStandardMaterial({
-    color: 0xb8b4ae,
-    roughness: 0.35,
-    metalness: 0.85,
-  });
-  const railY = BALLAST_HEIGHT + SLEEPER_HEIGHT + RAIL_HEIGHT / 2;
-  for (const side of [-1, 1]) {
-    const rail = new THREE.Mesh(railGeometry, railMaterial);
-    rail.position.set((side * TRACK_GAUGE) / 2, railY, 0);
-    rail.castShadow = true;
-    segment.add(rail);
-  }
-
-  return segment;
+  return shape;
 }
 
-// Builds track along an arbitrary polyline of {x, z} waypoints - one
-// straight segment per pair of consecutive points, each laid at that
-// segment's own length and rotated to its own heading. This is what lets the
-// branch line curve: the curve is really just several short straight
-// segments meeting at slightly different angles, in keeping with the low-poly
-// style everything else in this scene already uses.
+// Builds track along an arbitrary polyline of {x, z} waypoints. The branch
+// line's curve is really several short straight pieces meeting at slightly
+// different headings - one per waypoint pair - which is what lets it curve
+// at all without a spline library. Left as one mesh per piece, a curve fine
+// enough to look smooth (BRANCH_WAYPOINTS samples the S-bend at 60 points
+// per arc) would mean well over a hundred draw calls for the branch alone,
+// against a scene that otherwise sits around 410 total - so every piece's
+// ballast geometry is merged into a single mesh, and likewise for the rails,
+// leaving exactly one draw call per material no matter how many waypoints
+// the path is sampled at. Sleepers stay instanced, as everywhere else, in
+// one InstancedMesh for the whole path rather than one per piece.
 export function createTrackAlongPath(waypoints) {
   const track = new THREE.Group();
   track.name = 'branch-track';
+
+  const shape = ballastShape();
+  const ballastGeometries = [];
+  const railGeometries = [];
+  const sleeperMatrices = [];
+  const dummy = new THREE.Object3D();
+  const sleeperY = BALLAST_HEIGHT + SLEEPER_HEIGHT / 2;
+  const railY = BALLAST_HEIGHT + SLEEPER_HEIGHT + RAIL_HEIGHT / 2;
+
+  // Carries the running distance-since-last-sleeper across waypoint pairs,
+  // so the sleeper rhythm stays even along the whole path instead of
+  // resetting (and visibly bunching or gapping) at every waypoint.
+  let sleeperCursor = 0;
+  let sleeperIndex = 0;
 
   for (let i = 0; i < waypoints.length - 1; i++) {
     const a = waypoints[i];
@@ -172,13 +145,69 @@ export function createTrackAlongPath(waypoints) {
     const length = Math.hypot(dx, dz);
     if (length < 0.001) continue;
 
-    const segment = createTrackSegment(length);
-    segment.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+    const dirX = dx / length;
+    const dirZ = dz / length;
     // Same heading convention as RailPath.positionAt(): rotation.y = 0 faces
-    // -Z, so atan2(dx, -dz) rotates the segment's local -Z axis onto (dx, dz).
-    segment.rotation.y = Math.atan2(dx, -dz);
-    track.add(segment);
+    // -Z, so atan2(dx, -dz) rotates the piece's local -Z axis onto (dx, dz).
+    const heading = Math.atan2(dx, -dz);
+
+    const transform = new THREE.Matrix4().compose(
+      new THREE.Vector3((a.x + b.x) / 2, 0, (a.z + b.z) / 2),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), heading),
+      new THREE.Vector3(1, 1, 1)
+    );
+
+    const ballastGeometry = new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false });
+    ballastGeometry.translate(0, 0, -length / 2);
+    ballastGeometry.applyMatrix4(transform);
+    ballastGeometries.push(ballastGeometry);
+
+    for (const side of [-1, 1]) {
+      const railGeometry = new THREE.BoxGeometry(0.09, RAIL_HEIGHT, length);
+      railGeometry.translate((side * TRACK_GAUGE) / 2, railY, 0);
+      railGeometry.applyMatrix4(transform);
+      railGeometries.push(railGeometry);
+    }
+
+    while (sleeperCursor < length) {
+      dummy.position.set(a.x + dirX * sleeperCursor, sleeperY, a.z + dirZ * sleeperCursor);
+      dummy.rotation.set(0, heading + Math.sin(sleeperIndex * 12.9898) * 0.01, 0);
+      dummy.updateMatrix();
+      sleeperMatrices.push(dummy.matrix.clone());
+      sleeperCursor += SLEEPER_SPACING;
+      sleeperIndex++;
+    }
+    sleeperCursor -= length;
   }
+
+  const ballast = new THREE.Mesh(
+    mergeGeometries(ballastGeometries, false),
+    new THREE.MeshStandardMaterial({ color: 0x6b6560, roughness: 1 })
+  );
+  for (const geometry of ballastGeometries) geometry.dispose();
+  ballast.receiveShadow = true;
+  ballast.name = 'ballast';
+  track.add(ballast);
+
+  const rails = new THREE.Mesh(
+    mergeGeometries(railGeometries, false),
+    new THREE.MeshStandardMaterial({ color: 0xb8b4ae, roughness: 0.35, metalness: 0.85 })
+  );
+  for (const geometry of railGeometries) geometry.dispose();
+  rails.castShadow = true;
+  rails.name = 'rails';
+  track.add(rails);
+
+  const sleepers = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(2.6, SLEEPER_HEIGHT, 0.26),
+    new THREE.MeshStandardMaterial({ color: 0x4a3b2f, roughness: 0.95 }),
+    sleeperMatrices.length
+  );
+  sleeperMatrices.forEach((matrix, index) => sleepers.setMatrixAt(index, matrix));
+  sleepers.castShadow = true;
+  sleepers.receiveShadow = true;
+  sleepers.name = 'sleepers';
+  track.add(sleepers);
 
   return track;
 }
