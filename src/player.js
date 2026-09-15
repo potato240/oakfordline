@@ -66,6 +66,19 @@ export class Player {
     return this.seat !== null;
   }
 
+  // Instant relocation for the teleport menu. Sets height immediately (from
+  // the same heightAt() the normal per-frame update uses) so there is no
+  // one-frame drop through the old surface before the next update() call
+  // corrects it anyway.
+  teleportTo(x, z) {
+    this.seat = null;
+    this.velocity.set(0, 0, 0);
+    const position = this.controls.object.position;
+    position.x = x;
+    position.z = z;
+    position.y = this.heightAt(x, z) + EYE_HEIGHT;
+  }
+
   // Fallback for browsers that reject pointer lock: hold left button and drag.
   enableDragLook(domElement) {
     if (this.dragLook) return;

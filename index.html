@@ -10,7 +10,7 @@
 
     <div id="overlay">
       <h1>Oakford Line</h1>
-      <p>WASD to walk &middot; Mouse to look &middot; Shift to run</p>
+      <p>WASD to walk &middot; Mouse to look &middot; Shift to run &middot; T to teleport</p>
       <button id="start">Click to play</button>
     </div>
 
@@ -18,6 +18,15 @@
     <p id="hint"></p>
     <p id="status"></p>
     <p id="interact"></p>
+
+    <button id="teleport-btn">Teleport (T)</button>
+    <div id="teleport-menu" class="hidden">
+      <div id="teleport-panel">
+        <h2>Teleport to a station</h2>
+        <div id="teleport-list"></div>
+        <button id="teleport-close">Close</button>
+      </div>
+    </div>
 
     <script type="module" src="/src/main.js"></script>
   </body>

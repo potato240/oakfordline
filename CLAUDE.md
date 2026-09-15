@@ -51,6 +51,9 @@ Early scaffold. What exists today:
 - A visible first-person body in the style of PEAK: **just** two hands and two
   boots, no arms, legs or torso.
 - A drag-to-look fallback for browsers that reject pointer lock (see below).
+- A teleport menu (`T`, or the "Teleport" button, top right) listing every
+  named stop on both lines. Picking one instantly relocates the player to
+  that platform.
 
 - Solid collision: the bodyshell, canopy columns, station house, benches,
   lamps, crossing posts and lowered booms all block you. Doorways are only
@@ -470,6 +473,30 @@ over 1.96km that happened as soon as you left the first station.
 
 Keep `camera.far` comfortably above the dome radius as well, as a second line
 of defence.
+
+## Teleporting between stations
+
+`T` (or clicking the "Teleport" button, always visible top-right once the
+game has started) opens a station list built in `main.js` from both
+`STATIONS` (`layout.js`) and `BRANCH_STATIONS` (`branchLayout.js`) - a main
+line stop's platform sits at `PLATFORM_CENTRE_X`, a branch stop's at
+`station.x + PLATFORM_CENTRE_X`, matching exactly how `world.js` positions
+the real platform geometry for each. Picking one calls
+`Player.teleportTo(x, z)`, which sets position directly (and its height
+immediately, from the same `heightAt()` the normal per-frame update already
+uses) rather than waiting a frame for gravity/collision to catch up.
+
+**Why the menu unlocks the pointer lock itself, rather than just showing a
+panel over the game.** Pointer lock hides the OS cursor and freezes its
+reported position, so a genuinely locked player has no way to click a menu
+button at all - `openTeleportMenu()` calls `player.controls.unlock()` first
+to get a real, clickable cursor back, and `closeTeleportMenu()` calls
+`player.lock()` to resume. That unlock is not the player pausing, though -
+the existing `'unlock'` listener (which brings up the *start* overlay,
+`main.js`) is guarded with a `teleportMenuOpen` flag so opening the teleport
+menu never also pops the "Click to play" screen underneath it. Drag-look
+never locks the pointer in the first place, so for that fallback the menu
+just opens directly over the game with no lock/unlock cycle at all.
 
 ## Pointer lock
 

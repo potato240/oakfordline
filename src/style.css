@@ -147,3 +147,102 @@ body {
 #interact.visible {
   opacity: 1;
 }
+
+#teleport-btn {
+  position: fixed;
+  top: 1.2rem;
+  right: 1.2rem;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #0b0e13;
+  background: rgba(232, 237, 244, 0.9);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  z-index: 20;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#teleport-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#teleport-btn:hover {
+  background: #fff;
+}
+
+#teleport-menu {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 14, 19, 0.82);
+  z-index: 30;
+}
+
+#teleport-menu.hidden {
+  display: none;
+}
+
+#teleport-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1.6rem;
+  min-width: 20rem;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: #151a22;
+  border-radius: 1rem;
+  color: #e8edf4;
+}
+
+#teleport-panel h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+#teleport-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+
+#teleport-list button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.55rem 1rem;
+  text-align: left;
+  color: #e8edf4;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+#teleport-list button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+#teleport-close {
+  align-self: center;
+  padding: 0.5rem 1.4rem;
+  font: inherit;
+  color: #0b0e13;
+  background: #e8edf4;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+#teleport-close:hover {
+  background: #fff;
+}
