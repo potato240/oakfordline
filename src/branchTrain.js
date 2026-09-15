@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RAIL_TOP_Y } from './layout.js';
 import { BRANCH_PATH, BRANCH_STATIONS, BRANCH_WAYPOINTS } from './branchLayout.js';
 
-// A single-car railcar for the branch line - deliberately simpler than the
+// A two-car railcar unit for the branch line - deliberately simpler than the
 // main EMU (no tumblehome bodyside curve, no mullioned windows, no seating
 // hooked into the sit-down system), because this is a second, smaller line's
 // train, not a second copy of the main one. It reuses the same shape of
@@ -11,6 +11,7 @@ import { BRANCH_PATH, BRANCH_STATIONS, BRANCH_WAYPOINTS } from './branchLayout.j
 // distance travelled along the branch's own curved RailPath".
 
 const CAR_LENGTH = 13;
+const CAR_GAP = 0.7; // gangway gap between the two cars
 const CAR_WIDTH = 2.6;
 const CAR_HEIGHT = 2.4;
 const WHEEL_RADIUS = 0.4;
@@ -23,8 +24,19 @@ const DOOR_CENTRES = [-4, 4];
 const DOOR_HALF_WIDTH = 0.6;
 const DOOR_HEIGHT = 1.9;
 
+// The window band is a real opening, not glass laid over a solid sheet - see
+// the "Window openings are real" note in CLAUDE.md, which this mirrors: a
+// solid lower band, an open (glazed) middle band, and a solid header band,
+// with nothing opaque placed inside the middle band on either side of the
+// car. That is what makes it genuinely see-through rather than just tinted.
+const LOWER_BAND_HEIGHT = 0.85;
+const UPPER_BAND_HEIGHT = 0.35;
+const WINDOW_BAND_HEIGHT = CAR_HEIGHT - LOWER_BAND_HEIGHT - UPPER_BAND_HEIGHT;
+
 const HALF_LENGTH = CAR_LENGTH / 2;
+const TOTAL_HALF_LENGTH = CAR_LENGTH + CAR_GAP / 2; // both cars plus the gangway between them
 const INNER_HALF_WIDTH = CAR_WIDTH / 2 - 0.12;
+const GANGWAY_HALF_WIDTH = 0.55;
 
 const MAX_SPEED = 14; // m/s - a smaller railcar, not run flat out like the EMU
 const ACCELERATION = 1.2;
@@ -37,17 +49,16 @@ const materials = {
   bodyUpper: new THREE.MeshStandardMaterial({ color: 0xe8e0c8, roughness: 0.55 }),
   roof: new THREE.MeshStandardMaterial({ color: 0x3a3d38, roughness: 0.8 }),
   glass: new THREE.MeshStandardMaterial({
-    color: 0x28343a,
-    roughness: 0.1,
-    metalness: 0.3,
+    color: 0x9fc4d8,
+    roughness: 0.08,
+    metalness: 0.1,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.22,
   }),
   under: new THREE.MeshStandardMaterial({ color: 0x232326, roughness: 0.9 }),
   wheel: new THREE.MeshStandardMaterial({ color: 0x3a3a3d, roughness: 0.5, metalness: 0.6 }),
   floor: new THREE.MeshStandardMaterial({ color: 0x555a52, roughness: 0.85 }),
   ceiling: new THREE.MeshStandardMaterial({ color: 0xe6e6e0, roughness: 0.9 }),
-  interiorWall: new THREE.MeshStandardMaterial({ color: 0xd6d2c2, roughness: 0.85 }),
   seat: new THREE.MeshStandardMaterial({ color: 0x6b3a2f, roughness: 0.9 }),
   door: new THREE.MeshStandardMaterial({ color: 0xcfd6c8, roughness: 0.5 }),
   headlight: new THREE.MeshStandardMaterial({
@@ -55,6 +66,7 @@ const materials = {
     emissive: 0xffe9b0,
     emissiveIntensity: 1.2,
   }),
+  gangway: new THREE.MeshStandardMaterial({ color: 0x2e2f2c, roughness: 0.9 }),
 };
 
 function wallSegments() {
@@ -76,28 +88,49 @@ function addSideWall(car, side, doorLeaves) {
 
   for (const segment of wallSegments()) {
     const lower = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, CAR_HEIGHT * 0.5, segment.length),
+      new THREE.BoxGeometry(0.12, LOWER_BAND_HEIGHT, segment.length),
       materials.bodyLower
     );
-    lower.position.set(x, FLOOR_Y + (CAR_HEIGHT * 0.5) / 2, segment.centre);
+    lower.position.set(x, FLOOR_Y + LOWER_BAND_HEIGHT / 2, segment.centre);
     lower.castShadow = true;
     car.add(lower);
 
     const upper = new THREE.Mesh(
-      new THREE.BoxGeometry(0.12, CAR_HEIGHT * 0.5, segment.length),
+      new THREE.BoxGeometry(0.12, UPPER_BAND_HEIGHT, segment.length),
       materials.bodyUpper
     );
-    upper.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.5 + (CAR_HEIGHT * 0.5) / 2, segment.centre);
+    upper.position.set(x, FLOOR_Y + CAR_HEIGHT - UPPER_BAND_HEIGHT / 2, segment.centre);
     upper.castShadow = true;
     car.add(upper);
 
-    if (segment.length > 1.4) {
+    // The window band itself is left with no solid box at all - the glass
+    // pane below sits in a true opening, not in front of a solid sheet, so
+    // looking through one side's window band hits open air (and then, if
+    // nothing is in the way, the far side's window) rather than the car's
+    // own painted bodyside.
+    if (segment.length > 1.0) {
       const pane = new THREE.Mesh(
-        new THREE.BoxGeometry(0.16, 0.9, segment.length * 0.7),
+        new THREE.BoxGeometry(0.05, WINDOW_BAND_HEIGHT - 0.12, segment.length - 0.3),
         materials.glass
       );
-      pane.position.set(x, FLOOR_Y + CAR_HEIGHT * 0.66, segment.centre);
+      pane.position.set(x, FLOOR_Y + LOWER_BAND_HEIGHT + WINDOW_BAND_HEIGHT / 2, segment.centre);
       car.add(pane);
+
+      // A slim frame ring around the opening reads the pane as glazing set
+      // into a real hole, rather than a stray transparent box floating over
+      // solid paint.
+      const frameMaterial = materials.bodyLower;
+      for (const frameY of [
+        FLOOR_Y + LOWER_BAND_HEIGHT,
+        FLOOR_Y + LOWER_BAND_HEIGHT + WINDOW_BAND_HEIGHT,
+      ]) {
+        const bar = new THREE.Mesh(
+          new THREE.BoxGeometry(0.12, 0.05, segment.length - 0.2),
+          frameMaterial
+        );
+        bar.position.set(x, frameY, segment.centre);
+        car.add(bar);
+      }
     }
   }
 
@@ -109,6 +142,16 @@ function addSideWall(car, side, doorLeaves) {
     );
     header.position.set(x, FLOOR_Y + DOOR_HEIGHT + headerHeight / 2, centre);
     car.add(header);
+
+    // Each door leaf carries its own small glazed panel - doors are the one
+    // place on the branch railcar that keeps a window even though the leaf
+    // itself is solid, matching how real sliding doors are glazed.
+    const doorGlass = new THREE.Mesh(
+      new THREE.BoxGeometry(0.03, DOOR_HEIGHT * 0.45, DOOR_HALF_WIDTH * 2 - 0.3),
+      materials.glass
+    );
+    doorGlass.position.set(x + side * 0.06, FLOOR_Y + DOOR_HEIGHT * 0.62, centre);
+    car.add(doorGlass);
 
     for (const direction of [-1, 1]) {
       const leaf = new THREE.Mesh(
@@ -139,7 +182,8 @@ function addInterior(car) {
   car.add(light);
 
   // A few simple bench seats - visual only, not wired into the sit-down
-  // system, unlike the main EMU's seating.
+  // system, unlike the main EMU's seating. Kept below the window sill so
+  // they never block the new see-through glazing above them.
   for (const segment of wallSegments()) {
     if (segment.length < 1.2) continue;
     for (const side of [-1, 1]) {
@@ -176,6 +220,8 @@ function addRunningGear(car, wheels) {
   }
 }
 
+// The outer end of the unit - a cab face with a windscreen and marker
+// lamps, the same as the old single-car railcar had at both ends.
 function addCabFace(car, end) {
   const endZ = end * HALF_LENGTH;
 
@@ -195,8 +241,36 @@ function addCabFace(car, end) {
   }
 }
 
-function createCarBody(doorLeaves, wheels) {
+// The inner end of the unit, where the two cars meet - an open gangway
+// (mirroring the main EMU's inner-end gap in train.js) rather than a cab, so
+// the two-car unit reads as one connected train, not two railcars glued
+// together nose to nose.
+function addGangwayEnd(car, end) {
+  const endZ = end * HALF_LENGTH;
+  const outer = CAR_WIDTH / 2;
+
+  for (const [minX, maxX] of [[-outer, -GANGWAY_HALF_WIDTH], [GANGWAY_HALF_WIDTH, outer]]) {
+    const pillar = new THREE.Mesh(
+      new THREE.BoxGeometry(maxX - minX, CAR_HEIGHT, 0.1),
+      materials.gangway
+    );
+    pillar.position.set((minX + maxX) / 2, FLOOR_Y + CAR_HEIGHT / 2, endZ + end * 0.05);
+    pillar.castShadow = true;
+    car.add(pillar);
+  }
+
+  const bridge = new THREE.Mesh(
+    new THREE.BoxGeometry(GANGWAY_HALF_WIDTH * 2, 0.14, CAR_GAP + 0.2),
+    materials.gangway
+  );
+  bridge.position.set(0, FLOOR_Y + CAR_HEIGHT - 0.07, endZ + end * (CAR_GAP / 2));
+  car.add(bridge);
+}
+
+function createCar(doorLeaves, wheels, isFront) {
   const car = new THREE.Group();
+  const outerEnd = isFront ? 1 : -1;
+  const innerEnd = -outerEnd;
 
   addRunningGear(car, wheels);
   addInterior(car);
@@ -214,8 +288,8 @@ function createCarBody(doorLeaves, wheels) {
   roof.castShadow = true;
   car.add(roof);
 
-  addCabFace(car, 1);
-  addCabFace(car, -1);
+  addCabFace(car, outerEnd);
+  addGangwayEnd(car, innerEnd);
 
   return car;
 }
@@ -225,9 +299,20 @@ export class BranchTrain {
     this.group = new THREE.Group();
     this.group.name = 'branch-train';
 
+    this.carCentres = [(CAR_LENGTH + CAR_GAP) / 2, -(CAR_LENGTH + CAR_GAP) / 2];
+
     this.doorLeaves = [];
     this.wheels = [];
-    this.body = createCarBody(this.doorLeaves, this.wheels);
+    this.body = new THREE.Group();
+
+    const front = createCar(this.doorLeaves, this.wheels, true);
+    front.position.z = this.carCentres[0];
+    this.body.add(front);
+
+    const rear = createCar(this.doorLeaves, this.wheels, false);
+    rear.position.z = this.carCentres[1];
+    this.body.add(rear);
+
     this.group.add(this.body);
 
     this.stationIndex = 0;
@@ -276,10 +361,11 @@ export class BranchTrain {
     }
   }
 
-  // Half-extent along the car's own local Z - used for the "am I aboard"
-  // test, expressed in the train's own rotating local frame.
+  // Half-extent along the unit's own local Z, spanning both cars and the
+  // gangway between them - used for the "am I aboard" test, expressed in the
+  // train's own rotating local frame.
   get halfLength() {
-    return HALF_LENGTH;
+    return TOTAL_HALF_LENGTH;
   }
 
   // World point -> is it inside the saloon? Unlike the main Train (which
@@ -370,10 +456,12 @@ export class BranchTrain {
   }
 
   // Solid parts of the bodyshell, in train-local Z, the same shape as
-  // Train.colliders() in train.js. offsetX()/offset() keep the boxes attached
-  // as the unit runs - axis-aligned always, so exact on the straights and at
-  // every station, and only an approximation for the short stretch of curve
-  // the route passes through (see the note in collision.js).
+  // Train.colliders() in train.js - looped once per car, at that car's own
+  // centre, the same way the main train's two carriages are. offsetX()/
+  // offset() keep the boxes attached as the unit runs - axis-aligned always,
+  // so exact on the straights and at every station, and only an
+  // approximation for the short stretch of curve the route passes through
+  // (see the note in collision.js).
   colliders() {
     const boxes = [];
     const offset = () => this.group.position.z;
@@ -382,35 +470,48 @@ export class BranchTrain {
     const outer = CAR_WIDTH / 2;
     const inner = outer - 0.2;
 
-    for (const segment of wallSegments()) {
-      for (const [minX, maxX] of [[inner, outer], [-outer, -inner]]) {
-        boxes.push({
-          minX, maxX,
-          minZ: segment.centre - segment.length / 2,
-          maxZ: segment.centre + segment.length / 2,
-          minY: FLOOR_Y, maxY: top, offset, offsetX,
-        });
+    for (const carCentre of this.carCentres) {
+      for (const segment of wallSegments()) {
+        for (const [minX, maxX] of [[inner, outer], [-outer, -inner]]) {
+          boxes.push({
+            minX, maxX,
+            minZ: carCentre + segment.centre - segment.length / 2,
+            maxZ: carCentre + segment.centre + segment.length / 2,
+            minY: FLOOR_Y, maxY: top, offset, offsetX,
+          });
+        }
       }
-    }
 
-    for (const doorCentre of DOOR_CENTRES) {
-      for (const [side, minX, maxX] of [[1, inner, outer], [-1, -outer, -inner]]) {
-        boxes.push({
-          minX, maxX,
-          minZ: doorCentre - DOOR_HALF_WIDTH,
-          maxZ: doorCentre + DOOR_HALF_WIDTH,
-          minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset, offsetX,
-          active: () => this.doorOpen < 0.55 || this.currentStation.platformSide !== side,
-        });
+      for (const doorCentre of DOOR_CENTRES) {
+        for (const [side, minX, maxX] of [[1, inner, outer], [-1, -outer, -inner]]) {
+          boxes.push({
+            minX, maxX,
+            minZ: carCentre + doorCentre - DOOR_HALF_WIDTH,
+            maxZ: carCentre + doorCentre + DOOR_HALF_WIDTH,
+            minY: FLOOR_Y, maxY: FLOOR_Y + DOOR_HEIGHT, offset, offsetX,
+            active: () => this.doorOpen < 0.55 || this.currentStation.platformSide !== side,
+          });
+        }
       }
-    }
 
-    for (const end of [-1, 1]) {
-      boxes.push({
-        minX: -outer, maxX: outer,
-        minZ: end * HALF_LENGTH - 0.14, maxZ: end * HALF_LENGTH + 0.14,
-        minY: FLOOR_Y, maxY: top, offset, offsetX,
-      });
+      // Only the outer end of each car is fully solid - the inner ends face
+      // each other across the gangway, so they get a walkway gap instead.
+      for (const end of [-1, 1]) {
+        const endZ = carCentre + end * HALF_LENGTH;
+        const isInner = Math.abs(endZ) < HALF_LENGTH;
+
+        const spans = isInner
+          ? [[-outer, -GANGWAY_HALF_WIDTH], [GANGWAY_HALF_WIDTH, outer]]
+          : [[-outer, outer]];
+
+        for (const [minX, maxX] of spans) {
+          boxes.push({
+            minX, maxX,
+            minZ: endZ - 0.14, maxZ: endZ + 0.14,
+            minY: FLOOR_Y, maxY: top, offset, offsetX,
+          });
+        }
+      }
     }
 
     return boxes;

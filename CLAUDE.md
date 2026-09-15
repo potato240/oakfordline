@@ -42,7 +42,8 @@ Early scaffold. What exists today:
 - A second, branch line, leaving the main line on its own new platform at
   **Marsden Cross** and its own new platform at **Kingsford**, then curving
   away out to two stops the main line never reaches: **Fenwick Bridge** and
-  **Redgate**. Its own single-car railcar (green/cream livery) shuttles the
+  **Redgate**. Its own two-car railcar unit (green/cream livery, real
+  see-through window openings, a gangway between the cars) shuttles the
   branch independently of the main train. See "The branch line" below.
 - Landscape: instanced trees, horizon hills, telegraph poles along the line.
 - First-person movement: WASD (or arrow keys) to walk, mouse to look, Shift to
@@ -80,7 +81,7 @@ rather than falling onto them.
 | `src/train.js`   | Two-car unit: bodies, bogies, wheels, glazing.         |
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
 | `src/branchLayout.js` | Branch route: waypoints, stops, the `RailPath` curve-distance helper. |
-| `src/branchTrain.js`  | Single-car branch railcar: geometry and its own running state machine. |
+| `src/branchTrain.js`  | Two-car branch railcar unit: geometry and its own running state machine. |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
@@ -207,13 +208,20 @@ ghost prop at the world origin). This is the literal implementation of
 "always remove trees and mountains in the way of track" for a route whose
 "in the way" changes shape along its length, not just a straight-line offset.
 
-**`src/branchTrain.js`** is a second, independent train — a single-car,
-double-ended railcar in a distinct green/cream livery, deliberately simpler
-than the main EMU (no tumblehome bodyside, no interior seating hooked into
-the sit-down system). It reuses the shape of `Train`'s state machine
-(`dwell -> closing -> running -> opening`, a braking-distance run, reversal
-at each end) but generalised from "a scalar Z" to "a scalar distance along
-`BRANCH_PATH`", and every frame sets
+**`src/branchTrain.js`** is a second, independent train — a two-car,
+double-ended railcar unit in a distinct green/cream livery, deliberately
+simpler than the main EMU (no tumblehome bodyside, no interior seating
+hooked into the sit-down system). Each car's window band is a real opening —
+a solid lower band, an open glazed middle band, a solid header band, nothing
+opaque placed inside the middle band on either side of the car — the same
+idea as the main EMU's "windows are real, not glass boxes on a solid sheet"
+(see that section below), just without the mullions. The two cars connect
+through an open gangway (`addGangwayEnd()`) rather than being cab-to-cab; a
+cab face (`addCabFace()`) only sits at the two true outer ends of the unit.
+It reuses the shape of `Train`'s state machine (`dwell -> closing -> running
+-> opening`, a braking-distance run, reversal at each end) but generalised
+from "a scalar Z" to "a scalar distance along `BRANCH_PATH`", and every frame
+sets
 
 ```js
 const { x, z, heading } = BRANCH_PATH.positionAt(this.distance);
