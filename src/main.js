@@ -6,6 +6,7 @@ import { startAudio } from './audio.js';
 import { PlayerBody } from './body.js';
 import { STATIONS, PLATFORM_CENTRE_X } from './layout.js';
 import { BRANCH_STATIONS } from './branchLayout.js';
+import { MOUNT_REACH } from './bike.js';
 
 const canvas = document.getElementById('scene');
 const overlay = document.getElementById('overlay');
@@ -32,7 +33,7 @@ const camera = new THREE.PerspectiveCamera(
   6000
 );
 
-const { scene, heightAt, train, branchTrain, crossings, colliders, seats } = buildWorld();
+const { scene, heightAt, train, branchTrain, bike, crossings, colliders, seats } = buildWorld();
 const player = new Player(camera, renderer.domElement, heightAt, colliders);
 scene.add(player.object);
 
@@ -98,14 +99,19 @@ document.addEventListener('pointerlockerror', () => {
 
 const SEAT_REACH = 1.3;
 let nearestSeat = null;
+let nearestBike = null;
 
 document.addEventListener('keydown', (event) => {
   if (event.code !== 'KeyE' || !player.isActive) return;
 
   if (player.isSeated) {
     player.standUp();
+  } else if (player.isOnBike) {
+    player.dismountBike();
   } else if (nearestSeat) {
     player.sitAt(nearestSeat);
+  } else if (nearestBike) {
+    player.mountBike(nearestBike);
   }
 });
 
@@ -191,7 +197,7 @@ window.addEventListener('resize', () => {
 });
 
 if (import.meta.env.DEV) {
-  window.game = { scene, camera, renderer, player, train, branchTrain, crossings, colliders, body, seats };
+  window.game = { scene, camera, renderer, player, train, branchTrain, bike, crossings, colliders, body, seats };
 }
 
 const sky = scene.getObjectByName('sky');
@@ -229,7 +235,12 @@ renderer.setAnimationLoop(() => {
 
   player.update(delta);
 
-  const stepped = Math.hypot(position.x - previousX, position.z - previousZ);
+  // While riding, position moves by however fast the bike is going rather
+  // than by walking - passing that through would animate the walk cycle at
+  // bike speed, so it is suppressed exactly like being seated on the train.
+  const stepped = player.isOnBike
+    ? 0
+    : Math.hypot(position.x - previousX, position.z - previousZ);
   bodyEuler.setFromQuaternion(camera.quaternion);
   body.update(position, bodyEuler.y, stepped, delta);
 
@@ -240,7 +251,13 @@ renderer.setAnimationLoop(() => {
   // handled directly by player.isSeated in the keydown listener.
   if (player.isSeated) {
     nearestSeat = null;
+    nearestBike = null;
     interact.textContent = 'Press E to stand';
+    interact.classList.add('visible');
+  } else if (player.isOnBike) {
+    nearestSeat = null;
+    nearestBike = null;
+    interact.textContent = 'Press E to get off the bike';
     interact.classList.add('visible');
   } else {
     let closest = null;
@@ -255,9 +272,13 @@ renderer.setAnimationLoop(() => {
       }
     }
     nearestSeat = closest;
+    nearestBike = bike.distanceTo(position.x, position.z) <= MOUNT_REACH ? bike : null;
 
     if (nearestSeat) {
       interact.textContent = 'Press E to sit';
+      interact.classList.add('visible');
+    } else if (nearestBike) {
+      interact.textContent = 'Press E to ride the bike';
       interact.classList.add('visible');
     } else {
       interact.classList.remove('visible');

@@ -54,6 +54,9 @@ Early scaffold. What exists today:
 - A teleport menu (`T`, or the "Teleport" button, top right) listing every
   named stop on both lines. Picking one instantly relocates the player to
   that platform.
+- A rideable bike parked on the grass near Oakford. Walk up and press `E` to
+  ride: `W`/`S` throttle, `A`/`D` steer, `E` again to get off. See "The bike"
+  below.
 
 - Solid collision: the bodyshell, canopy columns, station house, benches,
   lamps, crossing posts and lowered booms all block you. Doorways are only
@@ -85,6 +88,7 @@ rather than falling onto them.
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
 | `src/branchLayout.js` | Branch route: waypoints, stops, the `RailPath` curve-distance helper. |
 | `src/branchTrain.js`  | Two-car branch railcar unit: geometry and its own running state machine. |
+| `src/bike.js`    | Rideable bike: geometry and its own throttle/steer/friction model.  |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
@@ -412,6 +416,70 @@ entirely while already seated) and drives the `#interact` prompt and the
 position exactly to the seat's expected `(x, eyeY, z)`; moving the train
 afterwards changes the seated position to match `getWorldZ()`'s new value
 with no drift; pressing `W` while seated stands the player up.
+
+## The bike
+
+A single `Bike` (`src/bike.js`), parked on the grass near Oakford. Unlike a
+train seat - which pins the player and lets something else move them - riding
+the bike is player-driven: `Player.update()` gains a third branch (alongside
+walking and sitting) that, while `this.bike` is set, reads WASD into a
+throttle and a steer value and hands them to `Bike.update()` instead of
+moving the player directly:
+
+```js
+const throttle = this.isActive ? forward : 0; // W minus S
+const turn = this.isActive ? steer : 0;        // D minus A
+this.bike.update(delta, throttle, turn, this.colliders);
+```
+
+`Bike` keeps its own `{x, z, heading, speed}`, the same shape as
+`BranchTrain`'s distance/heading state, but advanced by input instead of a
+timetable: throttle accelerates or brakes, coasting decays `speed` toward
+zero via friction, and steering is scaled by `Math.abs(speed)` so the bike
+cannot spin on the spot the way a real one cannot - full steer only bites
+once it is actually moving. Position and heading update with the same
+`(sin heading, -cos heading)` forward-vector convention `RailPath` and
+`BranchTrain` already use, so a heading of 0 still means "facing -Z"
+everywhere in this codebase.
+
+**Riding reuses the world's own collision**, not a bespoke check: each frame,
+`Bike.update()` projects its next `{x, z}` and resolves it against the same
+`Colliders` instance the player walks with (`colliders.resolve(point,
+RIDE_RADIUS, ...)`), so a ridden bike bumps into station buildings, canopy
+columns and benches exactly like a walking player would - no separate bike
+collision system to keep in sync.
+
+**The camera pins to the saddle, not a fixed seat.** Every frame while
+mounted, `Player.update()` sets the camera position to
+`Bike.riderPosition()` (the saddle's world XZ, offset slightly forward of
+the frame's own pivot) at `heightAt(...) + EYE_HEIGHT` - the same eye height
+walking uses, deliberately, rather than a lower "sitting" height: `body.js`
+hard-codes boot placement as an offset from eye height assuming it is always
+`EYE_HEIGHT` (1.7m), so a different riding eye height would float the boots
+above the ground by the difference. Mouse look still free-rotates the camera
+independently, exactly as it does while seated on the train.
+
+**Dismounting steps to the side, not in place** - `Player.dismountBike()`
+places the player perpendicular to the bike's own heading (the same forward
+vector rotated 90 degrees) rather than on top of wherever the bike is still
+parked, and zeroes the bike's `speed` so a later remount does not inherit
+leftover velocity from before it was left. `main.js`'s walk-cycle `stepped`
+distance is forced to `0` while riding, the same way it is effectively zero
+while seated on the train, so the boots do not play a running animation at
+bike speed.
+
+`main.js` computes `nearestBike` the same way it already computes
+`nearestSeat` - within `MOUNT_REACH` of the player, skipped while already
+seated or already riding - and the `KeyE` handler checks bike state ahead of
+seat state (`isSeated -> standUp`, `isOnBike -> dismountBike`, `nearestSeat ->
+sitAt`, `nearestBike -> mountBike`), so the four interactions cannot fight
+over the same keypress. Verified live: teleporting the player next to the
+bike shows "Press E to ride the bike"; a real dispatched `KeyE` mounts it and
+switches the prompt to "Press E to get off the bike"; holding forward
+accelerates to `MAX_SPEED` and moves the camera by exactly the bike's own
+`{dx, dz}` every frame; steering while moving curves the path; a second `KeyE`
+dismounts, leaves the bike exactly where it stopped, and stands the player
+0.9m to one side of it.
 
 ## Level crossings and sound
 

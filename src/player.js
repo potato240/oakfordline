@@ -35,6 +35,11 @@ export class Player {
     // until standUp() is called or the player presses a movement key.
     this.seat = null;
 
+    // Set while riding: a Bike instance. Unlike sitting, movement is not
+    // suspended - WASD drives the bike's own throttle/steer model instead of
+    // the player's normal camera-relative walk.
+    this.bike = null;
+
     document.addEventListener('keydown', (event) => this.keys.add(event.code));
     document.addEventListener('keyup', (event) => this.keys.delete(event.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -64,6 +69,33 @@ export class Player {
 
   get isSeated() {
     return this.seat !== null;
+  }
+
+  mountBike(bike) {
+    this.bike = bike;
+    this.velocity.set(0, 0, 0);
+  }
+
+  // Steps off wherever the bike currently is, to one side of it rather than
+  // on top of where it is still parked.
+  dismountBike() {
+    if (!this.bike) return;
+    const bike = this.bike;
+    this.bike = null;
+    bike.speed = 0;
+
+    // Perpendicular to the bike's own heading - see Bike.update()'s forward
+    // vector, this is that rotated 90 degrees.
+    const asideX = bike.x + Math.cos(bike.heading) * 0.9;
+    const asideZ = bike.z + Math.sin(bike.heading) * 0.9;
+    const position = this.controls.object.position;
+    position.x = asideX;
+    position.z = asideZ;
+    position.y = this.heightAt(asideX, asideZ) + EYE_HEIGHT;
+  }
+
+  get isOnBike() {
+    return this.bike !== null;
   }
 
   // Instant relocation for the teleport menu. Sets height immediately (from
@@ -111,6 +143,26 @@ export class Player {
   }
 
   update(delta) {
+    if (this.bike) {
+      const forward =
+        Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) -
+        Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
+      const steer =
+        Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) -
+        Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
+
+      // Gated on isActive the same way walking is - no input reaches the
+      // bike while the pointer is unlocked (paused, or the teleport menu).
+      const throttle = this.isActive ? forward : 0;
+      const turn = this.isActive ? steer : 0;
+      this.bike.update(delta, throttle, turn, this.colliders);
+
+      const rider = this.bike.riderPosition();
+      const position = this.controls.object.position;
+      position.set(rider.x, this.heightAt(rider.x, rider.z) + EYE_HEIGHT, rider.z);
+      return;
+    }
+
     if (this.seat) {
       // Standing up on any movement key is a deliberate convenience - most
       // players will try to just walk away rather than hunt for a key.

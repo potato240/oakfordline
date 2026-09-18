@@ -7,6 +7,7 @@ import { Crossing } from './crossing.js';
 import { Colliders } from './collision.js';
 import { BRANCH_WAYPOINTS, BRANCH_STATIONS } from './branchLayout.js';
 import { BranchTrain } from './branchTrain.js';
+import { Bike } from './bike.js';
 import {
   PLATFORM_HEIGHT,
   PLATFORM_WIDTH,
@@ -145,6 +146,12 @@ export function buildWorld() {
   scene.add(branchTrain.group);
   for (const box of branchTrain.colliders()) colliders.add(box);
 
+  // A bike, parked on the grass beside Oakford - clear of the platform, the
+  // track's own clearance corridor (so no tree ever spawns on top of it),
+  // and the telegraph poles' spacing.
+  const bike = new Bike(-12, 18, 0);
+  scene.add(bike.group);
+
   // Level crossings out on the line between the two stations.
   // Roughly midway between consecutive stops.
   const crossings = [-140, -420, -700, -980, -1260, -1540, -1820].map(
@@ -175,5 +182,5 @@ export function buildWorld() {
     getWorldZ: () => train.group.position.z + seat.car.position.z + seat.localZ,
   }));
 
-  return { scene, heightAt, train, branchTrain, crossings, colliders, seats };
+  return { scene, heightAt, train, branchTrain, bike, crossings, colliders, seats };
 }
