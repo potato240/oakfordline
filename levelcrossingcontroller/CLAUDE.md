@@ -46,7 +46,7 @@ A complete, playable MVP, now with customisation:
 - **Customisation**, chosen on the start screen and persisted to
   `localStorage`: barrier style (full boom / half barrier / double barrier /
   swing gate / trolley gate / none), light style (default / UK / America /
-  France / Sweden / the Netherlands / Germany / Wig-Wag / none), track count (1-4), and
+  France / Sweden / the Netherlands / Germany / Vertical / Wig-Wag / none), track count (1-4), and
   surroundings (default / city / town / farm / village / rural). See
   "Customisation" below - a settings
   *change* only takes effect on a fresh `Game`, since the scene it builds is
@@ -447,6 +447,16 @@ in a 60-frame sample), and the crossbuck now carries three red bands per
 arm rather than being a single plain-white board - confirmed visually
 against a reference photo of a real Dutch Andreaskruis-and-signal assembly.
 
+The old `netherlands` look - plain white crossbuck, two lamps stacked
+vertically on the bare post - was not just discarded: it shipped as its
+own style, `vertical`, since it is still a distinct, recognisable
+arrangement (the only style with lamps stacked rather than side by side),
+just not an accurate reproduction of anything real, so making
+`netherlands` accurate didn't have to mean losing it. `buildLamps()`'s
+`'vertical'` branch is exactly the old `'netherlands'` code, verbatim -
+`buildCrossbuck(postX, stopZ)` (unstriped) plus two lamps at the same `x`,
+`y = 2.55 ± 0.22`.
+
 **`france` has two confirmed real details, not a full verified sequence
 like `uk`/`america`**: the crossbuck ("croix de Saint-André") is red, not
 white with black lettering like the US one (`buildCrossbuck()` gained a
@@ -585,10 +595,9 @@ For settings specifically: `new Game(settings)` (headless - `node -e` with
 reads those for the camera's aspect ratio and there is otherwise no DOM
 dependency) is enough to construct and run every barrier×light×track×
 surroundings combination without a browser at all, which is how the full set
-of combinations (54 barrier×light alone as of `germany`/`wigwag`) got
-smoke-tested (construct, run simulated seconds with an auto-controller
-reacting to warnings, confirm `gameOver` never triggers) before ever loading
-a page.
+of combinations (60 barrier×light alone as of `vertical`) got smoke-tested
+(construct, run simulated seconds with an auto-controller reacting to
+warnings, confirm `gameOver` never triggers) before ever loading a page.
 Live-browser checks after that were for the things a headless run can't
 show: that each gate style actually reads as visually distinct, that the
 settings `<select>`s populate and round-trip through "Change Settings"

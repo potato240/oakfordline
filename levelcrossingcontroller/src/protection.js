@@ -150,6 +150,19 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     return;
   }
 
+  if (style === 'vertical') {
+    // The plain-white-crossbuck, stacked-lamp look 'netherlands' used
+    // before it was corrected to the real Dutch striped-cross/side-by-side
+    // arrangement - kept as its own style since it is a distinct, still
+    // recognisable look, just not an accurate Dutch one. Stacked vertically
+    // rather than side by side, unlike every other style here.
+    parent.add(buildCrossbuck(postX, stopZ));
+    for (const [i, offset] of [-0.22, 0.22].entries()) {
+      parent.add(buildRoundLamp(postX, 2.55 + offset, stopZ, i, lamps));
+    }
+    return;
+  }
+
   if (style === 'sweden') {
     // Square, and both flash together in phase 0 - the one style that does
     // not alternate - rather than shape alone doing all the distinguishing.
