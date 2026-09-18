@@ -25,6 +25,14 @@
         the tracks.
       </p>
       <p class="hint">Space, or the button in the corner, toggles the barrier.</p>
+
+      <div id="settings">
+        <label>Barrier <select id="setting-barrier"></select></label>
+        <label>Lights <select id="setting-lights"></select></label>
+        <label>Tracks <select id="setting-tracks"></select></label>
+        <label>Surroundings <select id="setting-surroundings"></select></label>
+      </div>
+
       <button id="start">Start</button>
     </div>
 
@@ -32,6 +40,7 @@
       <h1>Collision!</h1>
       <p id="final-score"></p>
       <button id="restart">Try Again (R)</button>
+      <button id="change-settings" class="secondary">Change Settings</button>
     </div>
 
     <script type="module" src="./src/main.js"></script>

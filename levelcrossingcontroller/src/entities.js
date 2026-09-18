@@ -15,14 +15,16 @@ let carColourIndex = 0;
 
 // A train travelling along X at constant speed - `direction` is +1 (moving
 // toward +X, spawned on the west edge) or -1 (spawned on the east edge).
+// `trackZ` is which of the (possibly several, see TRACK_COUNT) parallel
+// tracks it runs on - fixed for the train's whole life.
 export class Train {
-  constructor(direction, length, speed) {
+  constructor(direction, length, speed, trackZ = 0) {
     this.direction = direction;
     this.length = length;
     this.halfLength = length / 2;
     this.speed = speed;
+    this.trackZ = trackZ;
     this.x = direction > 0 ? -WORLD_HALF_X - length : WORLD_HALF_X + length;
-    this.dangerZoneHadCar = false; // for the clean-pass score bonus
 
     this.group = new THREE.Group();
     const body = new THREE.Mesh(
@@ -45,7 +47,7 @@ export class Train {
   }
 
   applyPosition() {
-    this.group.position.x = this.x;
+    this.group.position.set(this.x, 0, this.trackZ);
   }
 
   // Signed distance the train's leading edge still has to travel to reach
@@ -123,8 +125,16 @@ export class Car {
     return CAR_LENGTH / 2;
   }
 
-  occupiesZone(zoneHalfWidth) {
-    return this.z - this.halfLength < zoneHalfWidth && this.z + this.halfLength > -zoneHalfWidth;
+  // Does this car's body currently overlap the band [centerZ - halfWidth,
+  // centerZ + halfWidth]? Used both for the single combined "have I
+  // committed to the whole crossing" check (centerZ 0, the full multi-track
+  // half-width) and for an exact per-track collision check (centerZ that
+  // one track's own Z, its own TRACK_HALF_WIDTH) - see Game.checkCollision().
+  overlapsBand(centerZ, halfWidth) {
+    return (
+      this.z - this.halfLength < centerZ + halfWidth &&
+      this.z + this.halfLength > centerZ - halfWidth
+    );
   }
 
   isOffscreen() {

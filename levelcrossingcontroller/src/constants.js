@@ -8,8 +8,12 @@ export const WORLD_HALF_Z = 55; // visible extent of the road
 export const ROAD_HALF_WIDTH = 3.2; // the road's own half-width - also the
 // danger zone's half-extent along X, since that is exactly how far a train
 // has to clear to be off the road
-export const TRACK_HALF_WIDTH = 1.3; // the single track's half-width - the
-// danger zone's half-extent along Z, for the same reason in the other axis
+export const TRACK_HALF_WIDTH = 1.3; // one track's own half-width
+export const TRACK_SPACING = 2.9; // centre-to-centre distance between
+// adjacent parallel tracks when TRACK_COUNT > 1 - see
+// settings.combinedTrackHalfWidth(), which is what actually determines the
+// danger zone's half-extent along Z (one track's own TRACK_HALF_WIDTH when
+// TRACK_COUNT is 1, wider for more)
 
 export const LANE_OFFSET = 1.6; // each direction of road traffic gets its
 // own lane, offset either side of the track centreline

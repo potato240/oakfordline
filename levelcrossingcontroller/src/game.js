@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { buildScene } from './scene.js';
 import { Train, Car } from './entities.js';
 import { playWarningDing, playCrash } from './audio.js';
+import { DEFAULT_SETTINGS, combinedTrackHalfWidth } from './settings.js';
 import {
   ROAD_HALF_WIDTH,
   TRACK_HALF_WIDTH,
+  TRACK_SPACING,
   STOP_LINE_MARGIN,
   LANE_OFFSET,
   CAR_MIN_GAP,
@@ -25,16 +27,28 @@ import {
 } from './constants.js';
 
 // Owns every piece of live state - the scene is built once in the
-// constructor and reused; reset() (also called by the constructor) clears
-// everything else so a restart never needs a fresh Game or a page reload.
+// constructor (from `settings`, which is why a settings *change* needs a
+// whole new Game rather than mutating this one - see main.js) and reused;
+// reset() (also called by the constructor) clears everything else so a
+// same-settings restart never needs a fresh Game or a page reload.
 export class Game {
-  constructor() {
-    const { scene, camera, lamps, barrierPivots, reachDirections } = buildScene();
+  constructor(settings) {
+    this.settings = { ...DEFAULT_SETTINGS, ...settings };
+
+    const trackCount = this.settings.trackCount;
+    this.combinedHalfWidth = combinedTrackHalfWidth(trackCount);
+    // Centred on Z = 0 regardless of count, e.g. 1 track -> [0], 2 tracks ->
+    // [-spacing/2, +spacing/2], 3 -> [-spacing, 0, +spacing].
+    this.trackZs = Array.from(
+      { length: trackCount },
+      (_, i) => (i - (trackCount - 1) / 2) * TRACK_SPACING
+    );
+
+    const { scene, camera, lamps, protectionUnits } = buildScene(this.settings, this.trackZs);
     this.scene = scene;
     this.camera = camera;
     this.lamps = lamps;
-    this.barrierPivots = barrierPivots;
-    this.reachDirections = reachDirections;
+    this.protectionUnits = protectionUnits;
 
     this.reset();
   }
@@ -50,7 +64,7 @@ export class Game {
     this.gameOver = false;
 
     this.barrierTarget = 0; // 0 raised, 1 lowered - what the player has commanded
-    this.lowered = 0; // 0..1, how far down the booms actually are right now
+    this.lowered = 0; // 0..1, how far down the gate(s) actually are right now
     this.flashTimer = 0;
     this.flashState = 0;
     this.warningActive = false;
@@ -76,7 +90,8 @@ export class Game {
     const direction = Math.random() < 0.5 ? 1 : -1;
     const length = THREE.MathUtils.lerp(TRAIN_MIN_LENGTH, TRAIN_MAX_LENGTH, Math.random());
     const speed = THREE.MathUtils.lerp(TRAIN_MIN_SPEED, TRAIN_MAX_SPEED, Math.random());
-    const train = new Train(direction, length, speed);
+    const trackZ = this.trackZs[Math.floor(Math.random() * this.trackZs.length)];
+    const train = new Train(direction, length, speed, trackZ);
     this.trains.push(train);
     this.scene.add(train.group);
   }
@@ -93,7 +108,9 @@ export class Game {
 
   // One lane's worth of cars, ordered lead car first, each clamped behind
   // the car ahead and (until committed to crossing) behind the stop line
-  // whenever the barrier is closing or closed.
+  // whenever the barrier is closing or closed. The stop line sits behind
+  // the *combined* multi-track corridor, not any one track, since a car
+  // must clear every track before it is genuinely safe.
   advanceLane(orderedCars, delta) {
     let previous = null;
     for (const car of orderedCars) {
@@ -102,8 +119,8 @@ export class Game {
       if (!car.committed && this.lowered > 0.12) {
         const stopZ =
           car.direction > 0
-            ? -(TRACK_HALF_WIDTH + STOP_LINE_MARGIN)
-            : TRACK_HALF_WIDTH + STOP_LINE_MARGIN;
+            ? -(this.combinedHalfWidth + STOP_LINE_MARGIN)
+            : this.combinedHalfWidth + STOP_LINE_MARGIN;
         desired = car.direction > 0 ? Math.min(desired, stopZ) : Math.max(desired, stopZ);
       }
 
@@ -118,7 +135,7 @@ export class Game {
       car.z = desired;
       car.applyPosition();
 
-      if (!car.committed && car.occupiesZone(TRACK_HALF_WIDTH)) car.committed = true;
+      if (!car.committed && car.overlapsBand(0, this.combinedHalfWidth)) car.committed = true;
 
       previous = car;
     }
@@ -139,10 +156,7 @@ export class Game {
       this.lowered = Math.max(this.barrierTarget, this.lowered - step);
     }
 
-    for (let i = 0; i < this.barrierPivots.length; i++) {
-      this.barrierPivots[i].rotation.z =
-        this.reachDirections[i] * (1 - this.lowered) * (Math.PI / 2);
-    }
+    for (const unit of this.protectionUnits) unit.apply(this.lowered);
 
     const lightsOn = this.lowered > 0.02;
     if (lightsOn) {
@@ -175,16 +189,25 @@ export class Game {
       if (distance / train.speed <= WARNING_LEAD_TIME) active = true;
     }
 
-    if (active && !this.warningActive) playWarningDing();
+    // 'none' lights means no warning system at all, audio included - not
+    // just an invisible lamp mesh.
+    if (active && !this.warningActive && this.settings.lightStyle !== 'none') {
+      playWarningDing();
+    }
     this.warningActive = active;
   }
 
+  // Checked per train, against that train's own track band specifically -
+  // not "any car anywhere in the whole multi-track corridor", since a train
+  // on one track cannot be hit by a car only overlapping a different track.
   checkCollision() {
-    const trainInZone = this.trains.some((t) => t.occupiesZone(ROAD_HALF_WIDTH));
-    const carInZone = this.cars.some((c) => c.occupiesZone(TRACK_HALF_WIDTH));
-    if (trainInZone && carInZone) {
-      this.gameOver = true;
-      playCrash();
+    for (const train of this.trains) {
+      if (!train.occupiesZone(ROAD_HALF_WIDTH)) continue;
+      if (this.cars.some((c) => c.overlapsBand(train.trackZ, TRACK_HALF_WIDTH))) {
+        this.gameOver = true;
+        playCrash();
+        return;
+      }
     }
   }
 

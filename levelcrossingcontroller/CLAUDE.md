@@ -14,20 +14,22 @@ is meant to stay fully self-contained.
 
 ## Current state
 
-A complete, playable MVP:
+A complete, playable MVP, now with customisation:
 
 - Fixed top-down-ish camera over a single crossing. Track runs along X
   (trains), road runs along Z (cars), they cross at the origin.
 - Trains spawn off one edge, cross, and despawn off the other - random
   direction, length and speed each time, `TRAIN_INTERVAL_MIN`-`_MAX` (30-120s)
   apart, picked uniformly at random each time with no ramp - deliberately
-  unpredictable rather than a rhythm the player can just learn.
+  unpredictable rather than a rhythm the player can just learn. On more than
+  one track (see Customisation), each spawn picks one of the tracks at
+  random too.
 - Cars spawn on the road in two lanes (one per direction), queue behind each
   other with a fixed minimum gap, and stop at the barrier when it is down.
-- One shared barrier (two gate arms, one per approach) the player raises and
-  lowers with Space or the on-screen button. Takes `BARRIER_SECONDS` to
-  travel, so it has to be commanded down with enough lead time, not
-  slammed shut on arrival.
+- A shared barrier (one gate per approach, whichever style is selected) the
+  player raises and lowers with Space or the on-screen button. Takes
+  `BARRIER_SECONDS` to travel, so it has to be commanded down with enough
+  lead time, not slammed shut on arrival.
 - Lights and a bell (`playWarningDing()`) start automatically
   `WARNING_LEAD_TIME` seconds before any train would reach the crossing -
   the player's cue to act, not an autopilot; the barrier does not move on
@@ -35,38 +37,66 @@ A complete, playable MVP:
 - Cars ramp up over `RAMP_SECONDS`, getting more frequent down to a floor
   (`CAR_INTERVAL_MIN`). Trains do not ramp - see above.
 - Score: +1 per car that clears the crossing, +2 per train. Collision ends
-  the run with a game-over screen and a restart.
+  the run with a game-over screen, a same-settings restart, and a link back
+  to the settings screen.
+- **Customisation**, chosen on the start screen and persisted to
+  `localStorage`: barrier style (full boom / half barrier / swing gate /
+  trolley gate / none), light style (default / UK / America / Sweden / the
+  Netherlands / none), track count (1-4), and surroundings (default / city /
+  town / farm / village / rural). See "Customisation" below - a settings
+  *change* only takes effect on a fresh `Game`, since the scene it builds is
+  not something an existing one can rebuild in place.
 
 Not built yet: no sound files (everything in `audio.js` is synthesised, the
-same approach Oakford Line uses), no visual variety beyond a few car
-colours, no persistent high score.
+same approach Oakford Line uses), no persistent high score.
 
 ## Layout
 
 | Path | Purpose |
 | ---- | ------- |
-| `index.html` | Entry point - canvas, HUD, warning banner, start/game-over overlays. |
-| `src/main.js` | Renderer, resize handling, UI wiring, the animation loop. |
+| `index.html` | Entry point - canvas, HUD, warning banner, start/settings/game-over overlays. |
+| `src/main.js` | Renderer, resize handling, settings UI, the animation loop. |
+| `src/settings.js` | The option lists (barrier/light/track/surroundings), defaults, `localStorage` load/save. |
 | `src/constants.js` | Every tunable - world size, speeds, timings, difficulty ramp. Edit here first. |
-| `src/scene.js` | Builds the static scene: ground, road, track, barrier assemblies. |
+| `src/scene.js` | Orchestrates the static scene per current settings: ground, road, track, protection units, surroundings. |
+| `src/protection.js` | Barrier + light styles - `buildProtectionUnit()`, one per approach. |
+| `src/track.js` | The (possibly multi-track) railway corridor geometry. |
+| `src/surroundings.js` | The six surroundings presets' decorative props. |
 | `src/entities.js` | `Train` and `Car` classes - geometry plus their own movement/zone math. |
 | `src/game.js` | `Game` - owns all live state, spawning, the barrier state machine, collision detection, scoring. |
 | `src/audio.js` | Synthesised warning ding / crash / car-pass tones. No audio files. |
-| `src/style.css` | HUD, banner, overlays. |
+| `src/style.css` | HUD, banner, overlays, settings panel. |
 
 ## The danger zone, and how collision actually works
 
-The "danger zone" is simply the rectangle where the road and track
-overlap: `X ∈ [-ROAD_HALF_WIDTH, ROAD_HALF_WIDTH]`,
-`Z ∈ [-TRACK_HALF_WIDTH, TRACK_HALF_WIDTH]` (`constants.js`). Both `Train`
-and `Car` expose `occupiesZone(halfWidth)` - a standard interval-overlap
-test between the entity's own body and that rectangle. `Game.checkCollision()`
-is deliberately almost nothing:
+With `TRACK_COUNT` now selectable (1-4), "the danger zone" is really two
+things at once:
+
+- **Per-track**, for collision: each track has its own narrow band,
+  `X ∈ [-ROAD_HALF_WIDTH, ROAD_HALF_WIDTH]`,
+  `Z ∈ [trackZ - TRACK_HALF_WIDTH, trackZ + TRACK_HALF_WIDTH]` - a train on
+  one track can only ever be hit by a car whose body overlaps *that* band,
+  not any other track's.
+- **Combined**, for the stop line and for a car's own "have I committed"
+  check: the union of every track's band,
+  `Z ∈ [-combinedHalfWidth, combinedHalfWidth]`
+  (`settings.combinedTrackHalfWidth(trackCount)`) - a car has to clear the
+  *whole* multi-track corridor before it is genuinely safe, not just one
+  track of it.
+
+`Train.occupiesZone(halfWidth)` is an X-only check (unaffected by track
+count - it is about the *road's* width, not which track). `Car` exposes the
+more general `overlapsBand(centerZ, halfWidth)`, a standard interval-overlap
+test against an arbitrary band, so it can serve both roles:
 
 ```js
-const trainInZone = this.trains.some((t) => t.occupiesZone(ROAD_HALF_WIDTH));
-const carInZone = this.cars.some((c) => c.occupiesZone(TRACK_HALF_WIDTH));
-if (trainInZone && carInZone) { this.gameOver = true; ... }
+// Game.checkCollision() - per train, against that train's own track band
+for (const train of this.trains) {
+  if (!train.occupiesZone(ROAD_HALF_WIDTH)) continue;
+  if (this.cars.some((c) => c.overlapsBand(train.trackZ, TRACK_HALF_WIDTH))) {
+    this.gameOver = true; ...
+  }
+}
 ```
 
 There is no separate "is the barrier down" check here at all - and that is
@@ -76,7 +106,9 @@ that correctly, a car and a train can never overlap. If the player is too
 slow, a car ends up in the zone anyway, and *then* a train arriving is a
 real geometric overlap, not a rules violation - the simplest possible model
 of "what actually happens" rather than a scripted "you lose" condition
-layered on top of it.
+layered on top of it. Verified directly: a train and a car placed on
+*different* tracks of a 3-track crossing, both already technically "in the
+zone", do not collide; moved onto the *same* track, they do.
 
 ## Cars: commit or stop, never both
 
@@ -88,20 +120,21 @@ first) and clamps each one's desired position by, at most, two things:
 2. **The stop line** - only if the car has not yet `committed`, and only
    while the barrier is closing or closed (`this.lowered > 0.12`).
 
-`committed` is set, permanently, the moment a car's own `occupiesZone()`
-first turns true - once a car's body has started overlapping the danger
-zone, it no longer stops for the barrier and just drives straight through
-and out the other side, exactly like a real driver would rather than
-slamming on the brakes mid-crossing. This is what makes closing the barrier
-*late* genuinely dangerous rather than merely rude: a car already committed
-when the gates come down carries on regardless.
+`committed` is set, permanently, the moment a car's own
+`overlapsBand(0, combinedHalfWidth)` first turns true - once a car's body has
+started overlapping the (combined, multi-track) danger zone, it no longer
+stops for the barrier and just drives straight through and out the other
+side, exactly like a real driver would rather than slamming on the brakes
+mid-crossing. This is what makes closing the barrier *late* genuinely
+dangerous rather than merely rude: a car already committed when the gates
+come down carries on regardless.
 
 **This is also where a real bug lived**, worth knowing about if the zone or
 car dimensions ever change: the stop line sits at
-`TRACK_HALF_WIDTH + STOP_LINE_MARGIN` from the crossing centre, but a
-car's `occupiesZone()` check is about its *body*, not its centre point - it
-turns true once the car's front bumper (its centre plus
-`CAR_LENGTH / 2`) reaches the zone edge, not once its centre does.
+`combinedHalfWidth + STOP_LINE_MARGIN` from the crossing centre, but a
+car's overlap check is about its *body*, not its centre point - it turns
+true once the car's front bumper (its centre plus `CAR_LENGTH / 2`) reaches
+the zone edge, not once its centre does.
 `STOP_LINE_MARGIN` was originally `1.0`, smaller than `CAR_LENGTH / 2`
 (`1.3`) - so a queueing car's front bumper crossed into the danger zone,
 and so became permanently `committed`, *before* its centre ever reached the
@@ -157,6 +190,72 @@ degrading performance. Re-run with the cap in place: the same 600s soak test
 holds steady at exactly 40 cars from ~t=200s onward, with score still
 climbing the whole time - stable indefinitely, not just for a few minutes.
 
+## Customisation
+
+Four independent settings, chosen on the start screen
+(`{barrierType, lightStyle, trackCount, surroundings}`, `settings.js`) and
+passed into `new Game(settings)`. **A settings change requires a whole new
+`Game`** - `main.js`'s `beginGame()` always constructs one fresh, discarding
+whatever `Game` existed before, rather than trying to mutate an existing
+scene's track count or gate style in place. `Game.reset()` (used by "Try
+Again") deliberately does *not* touch settings or rebuild the scene - it
+only clears live state (trains, cars, score) for a same-settings replay,
+which is why "Try Again" and "Change Settings" are two different buttons on
+the game-over screen with two different effects.
+
+**Barrier and light style are purely visual** - every combination plays
+identically underneath. `Game`'s own `barrierTarget`/`lowered` state (what
+the *player* commands) is what stops traffic in every case; `barrierType`
+only controls what geometry represents that state, right down to
+`barrierType: 'none'` still having a fully functional (if invisible) gate
+the player commands via the same toggle. This was a deliberate scope
+decision, not an oversight: making `'none'` remove the player's actual
+ability to stop traffic would mean cars could never be stopped at all in
+that mode, which is a much bigger design change (an entirely different
+"drivers must decide for themselves" traffic model) than "customise how the
+gate looks." If that distinction ever turns out to matter for real gameplay
+balance, it belongs in `Game.advanceLane()`'s stop-line clamp, not in
+`protection.js`.
+
+**`protection.js`** builds one `{group, apply(lowered)}` per approach via
+`buildProtectionUnit()`, regardless of which gate kind was picked - a boom
+pivots about a horizontal (Z) axis (`default`/`half`, differing only in
+`boomLength`), a `swing` gate pivots about a *vertical* (Y) axis instead
+(open = parallel to the road, closed = swung across it), and a `trolley`
+gate translates sideways along an overhead rail rather than rotating at all.
+`Game.updateBarrier()` does not need to know which: it just calls
+`unit.apply(this.lowered)` for each approach every frame. Light styles
+(`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/
+stacked), flash behaviour (alternating/in-phase), and whether a crossbuck or
+banded post accompanies them - **stylised, simplified homages, not accurate
+reproductions of any real country's actual signalling standard.**
+`lightStyle: 'none'` suppresses `playWarningDing()` entirely, not just the
+lamp mesh - it represents no warning *system*, audio included, not merely
+invisible lamps that still ring a bell.
+
+**Track count widens the danger corridor, not the train spawn rate.**
+`TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on
+`Z = 0` (`TRACK_SPACING` apart) and computes `combinedHalfWidth` from them.
+Trains still spawn on the same single, overall timer regardless of count -
+each spawn just also picks one of the `trackZs` at random - so more tracks
+makes the crossing itself more dangerous (a wider corridor takes a car
+longer to clear, and the stop line sits further back) without also just
+multiplying how often trains show up. `track.js` renders every track inside
+one continuous ballast bed (a real multi-track railway is one corridor, not
+several separate strips with gaps between them), with one rail pair per
+track. Verified directly: `combinedHalfWidth` for 1/2/4 tracks is
+1.3/2.75/5.65, and a car's own stop position matches
+`combinedHalfWidth + STOP_LINE_MARGIN` exactly in every case (2.9/4.35/7.25).
+
+**Surroundings** (`surroundings.js`) scatter decorative props (trees,
+towers, cottages, a barn/silo/hay bales/fences for farm, etc.) via the same
+deterministic-random-plus-rejection-sampling idea Oakford Line's own tree
+placement uses, clear of a box around the crossing sized from the *current*
+`combinedHalfWidth` - so a 4-track crossing with a dense `city` preset never
+spawns a tower on top of the extra tracks just because it was tuned against
+the 1-track case. `surroundings: 'default'` deliberately returns nothing
+- the bare look the game always had before this setting existed.
+
 ## Verifying changes here
 
 Screenshots in this environment are frequently unreliable (the preview
@@ -171,5 +270,18 @@ state. A collision needs a *genuine* time-overlap between a train's arrival
 and a car's transit - it is easy to write a "collision test" that
 accidentally isn't one because the car clears the zone long before the
 train arrives; the reliable way to force one is to place both entities
-already inside `occupiesZone()` before the first `update()` call, not to
-guess at relative timing.
+already inside `occupiesZone()`/`overlapsBand()` before the first `update()`
+call, not to guess at relative timing.
+
+For settings specifically: `new Game(settings)` (headless - `node -e` with
+`global.window = { innerWidth, innerHeight }` stubbed, since `scene.js`
+reads those for the camera's aspect ratio and there is otherwise no DOM
+dependency) is enough to construct and run every barrier×light×track×
+surroundings combination without a browser at all, which is how all 36
+combinations got smoke-tested (construct, run 200 steps, toggle the
+barrier, run 200 more, confirm nothing throws) before ever loading a page.
+Live-browser checks after that were for the things a headless run can't
+show: that each gate style actually reads as visually distinct, that the
+settings `<select>`s populate and round-trip through "Change Settings"
+correctly, and that a screenshot of e.g. the swing gate over a 3-track
+crossing with farm scenery looks like what the code claims it builds.
