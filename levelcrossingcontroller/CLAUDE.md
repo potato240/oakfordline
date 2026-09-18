@@ -46,8 +46,8 @@ A complete, playable MVP, now with customisation:
 - **Customisation**, chosen on the start screen and persisted to
   `localStorage`: barrier style (full boom / half barrier / double barrier /
   swing gate / trolley gate / none), light style (default / UK / America /
-  Sweden / the Netherlands / none), track count (1-4), and surroundings
-  (default / city / town / farm / village / rural). See
+  France / Sweden / the Netherlands / none), track count (1-4), and
+  surroundings (default / city / town / farm / village / rural). See
   "Customisation" below - a settings
   *change* only takes effect on a fresh `Game`, since the scene it builds is
   not something an existing one can rebuild in place.
@@ -349,10 +349,11 @@ Light styles
 (`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/
 stacked), and flash behaviour (alternating/in-phase) - **stylised,
 simplified homages, not accurate reproductions of any real country's actual
-signalling standard, except `uk` and `america`, both deliberate exceptions**
-(see below). `lightStyle: 'none'` suppresses `playWarningDing()` entirely,
-not just the lamp mesh - it represents no warning *system*, audio included,
-not merely invisible lamps that still ring a bell.
+signalling standard, except `uk` and `america` (deliberate exceptions, see
+below) and `france` (one confirmed real detail, the rest a reasonable
+guess)**. `lightStyle: 'none'` suppresses `playWarningDing()` entirely, not
+just the lamp mesh - it represents no warning *system*, audio included, not
+merely invisible lamps that still ring a bell.
 
 **`uk` is modelled on the real sequence, not just given a different look.**
 Real UK level crossing road signals show a single steady amber lamp for a
@@ -388,6 +389,23 @@ height as the crossbuck, which reads as decorative rather than as one
 recognisable assembly. `buildLamps()`'s `'america'` branch now places them
 at `y = 1.55`, half a metre below the crossbuck's own `y = 2.05`, close
 together (`±0.3` apart, not `±0.35` spread either side of the post).
+
+**`france` has two confirmed real details, not a full verified sequence
+like `uk`/`america`**: the crossbuck ("croix de Saint-André") is red, not
+white with black lettering like the US one (`buildCrossbuck()` gained a
+`material` parameter for exactly this, defaulting to white so `america`/
+`netherlands` are unchanged); and a real French crossing signal is a
+*single* flashing light, not an alternating pair - every other lit style
+here uses two. **This one shipped wrong the first time**: the initial
+version gave `france` the same two-lamp side-by-side arrangement as
+`america`, on the mistaken assumption every crossbuck-style country's
+signal works the same way. Corrected to exactly one `buildRoundLamp()` call,
+centred (`postX`, not `postX ± offset`), `phase: 0` - it flashes on/off on
+the ordinary `flashState` rhythm rather than alternating with a partner
+that no longer exists. Verified directly: the crossing now has exactly one
+lamp per approach (two total, one per post, each independently flashing in
+sync since both are phase 0), and it genuinely toggles between lit and dark
+over time rather than always-on or one of a pair.
 
 **Track count widens the danger corridor, not the train spawn rate.**
 `TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on

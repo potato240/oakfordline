@@ -16,11 +16,14 @@ export const BARRIER_TYPES = [
 // crossings tend to look (a crossbuck here, lamps arranged differently
 // there) - not accurate reproductions of any real country's actual
 // signalling standard, except 'uk' and 'america', which are modelled on
-// the real thing more deliberately (see protection.js).
+// the real thing more deliberately (see protection.js). 'france' sits in
+// between: the red crossbuck is a genuine distinguishing feature, the rest
+// is a reasonable guess rather than a verified sequence like 'uk'/'america'.
 export const LIGHT_STYLES = [
   { value: 'default', label: 'Default' },
   { value: 'uk', label: 'UK' },
   { value: 'america', label: 'America' },
+  { value: 'france', label: 'France' },
   { value: 'sweden', label: 'Sweden' },
   { value: 'netherlands', label: 'The Netherlands' },
   { value: 'none', label: 'None' },

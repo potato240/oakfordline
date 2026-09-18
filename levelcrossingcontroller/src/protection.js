@@ -52,10 +52,10 @@ function buildSquareLamp(x, y, z, phase, lamps) {
   return lamp;
 }
 
-function buildCrossbuck(postX, stopZ) {
+function buildCrossbuck(postX, stopZ, material = materials.boomWhite) {
   const group = new THREE.Group();
   for (const angle of [Math.PI / 4, -Math.PI / 4]) {
-    const board = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.16, 0.05), materials.boomWhite);
+    const board = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.16, 0.05), material);
     board.position.set(postX, 2.05, stopZ);
     board.rotation.z = angle;
     board.castShadow = true;
@@ -97,6 +97,18 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     for (const offset of [-0.3, 0.3]) {
       parent.add(buildSquareLamp(postX + offset, 2.25, stopZ, 0, lamps));
     }
+    return;
+  }
+
+  if (style === 'france') {
+    // Two real distinguishing French features, not a stylised guess: the
+    // "croix de Saint-André" is red, not white with black lettering like
+    // the US crossbuck, and a real French crossing signal is a single
+    // flashing red light - not an alternating pair like every other lit
+    // style here. One centred lamp, phase 0, flashing on the normal
+    // FLASH_INTERVAL rhythm rather than alternating with a partner.
+    parent.add(buildCrossbuck(postX, stopZ, materials.boomRed));
+    parent.add(buildRoundLamp(postX, 1.55, stopZ, 0, lamps));
     return;
   }
 
