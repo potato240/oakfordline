@@ -91,6 +91,59 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Zoom dollies the camera along its existing view line rather than changing
+// FOV, so the perspective itself never distorts - only how close the fixed
+// viewpoint sits. `zoom` is a multiplier on the camera's own built-in
+// distance (scene.js sets that distance per track count), 1 = as built;
+// `homePosition`/`lookAtTarget` are captured fresh from whatever camera the
+// current Game just built, so a settings change (a new track count moves
+// the built-in camera back a bit, see scene.js) still zooms from the right
+// baseline instead of an old one. The chosen zoom level itself persists
+// across a settings change or restart, rather than resetting to 1 -
+// there is no reason picking a new surroundings preset should also throw
+// away how far in the player had zoomed.
+const ZOOM_MIN = 0.45;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 0.08;
+let zoom = 1;
+const homePosition = new THREE.Vector3();
+const lookAtTarget = new THREE.Vector3(0, 0, -4); // matches every camera.lookAt() in scene.js
+
+function captureZoomHome() {
+  homePosition.copy(game.camera.position);
+}
+
+function applyZoom() {
+  game.camera.position
+    .copy(lookAtTarget)
+    .addScaledVector(
+      new THREE.Vector3().subVectors(homePosition, lookAtTarget),
+      zoom
+    );
+  game.camera.lookAt(lookAtTarget);
+}
+
+function zoomBy(steps) {
+  zoom = THREE.MathUtils.clamp(zoom + steps * ZOOM_STEP, ZOOM_MIN, ZOOM_MAX);
+  applyZoom();
+}
+
+captureZoomHome();
+
+canvas.addEventListener(
+  'wheel',
+  (event) => {
+    event.preventDefault();
+    zoomBy(Math.sign(event.deltaY));
+  },
+  { passive: false }
+);
+
+document.addEventListener('keydown', (event) => {
+  if (event.code === 'Equal' || event.code === 'NumpadAdd') zoomBy(-1);
+  else if (event.code === 'Minus' || event.code === 'NumpadSubtract') zoomBy(1);
+});
+
 let started = false;
 
 function beginGame() {
@@ -102,6 +155,8 @@ function beginGame() {
   game = new Game(settings);
   game.camera.aspect = window.innerWidth / window.innerHeight;
   game.camera.updateProjectionMatrix();
+  captureZoomHome();
+  applyZoom(); // keep whatever zoom level the player had chosen, on the new camera
   if (import.meta.env.DEV) window.game = game;
 
   overlay.classList.add('hidden');

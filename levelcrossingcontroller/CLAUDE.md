@@ -16,8 +16,9 @@ is meant to stay fully self-contained.
 
 A complete, playable MVP, now with customisation:
 
-- Fixed top-down-ish camera over a single crossing. Track runs along X
-  (trains), road runs along Z (cars), they cross at the origin.
+- Fixed top-down-ish camera over a single crossing (never orbits or pans -
+  only dollies in/out, via scroll or +/-, see "Zoom" below). Track runs
+  along X (trains), road runs along Z (cars), they cross at the origin.
 - Trains spawn off one edge, cross, and despawn off the other - random
   direction, length and speed each time, `TRAIN_INTERVAL_MIN`-`_MAX` (30-120s)
   apart, picked uniformly at random each time with no ramp - deliberately
@@ -228,6 +229,30 @@ backed-up crossing reads as "the road is jammed out of sight" rather than
 degrading performance. Re-run with the cap in place: the same 600s soak test
 holds steady at exactly 40 cars from ~t=200s onward, with score still
 climbing the whole time - stable indefinitely, not just for a few minutes.
+
+## Zoom
+
+Scroll, or `+`/`-`, dollies the fixed camera along its own existing view
+line (`main.js`) - it moves closer to or further from the same fixed point,
+`lookAtTarget = (0, 0, -4)` (matching every `camera.lookAt()` in
+`scene.js`), rather than changing FOV, so the perspective itself never
+distorts, only how close the viewpoint sits. `zoom` is a multiplier on
+whatever distance the *current* camera was actually built at - captured
+fresh into `homePosition` every time a new `Game` is constructed
+(`captureZoomHome()`), because `scene.js` itself moves the camera back a
+bit per extra track (`camera.position.set(0, 62 + extraTracks * 6, 78 +
+extraTracks * 6)`), so "zoomed all the way out" has to mean something
+different at 4 tracks than at 1, not a fixed absolute distance.
+
+The chosen zoom level itself is **not** reset by a settings change or a
+restart - `beginGame()` calls `captureZoomHome()` then immediately
+`applyZoom()` again on the new camera, so picking a new surroundings preset
+mid-session does not also throw away how far in the player had zoomed.
+Verified directly: zoomed to the minimum (`ZOOM_MIN = 0.45`) at 4 tracks
+(camera Z = 41), then switching to 1 track (a different built-in camera
+distance) landed at exactly the value `-4 + 0.45 * (78 - -4)` predicts
+(32.9) - the same relative zoom, correctly rescaled to the new baseline,
+not the old absolute distance carried over verbatim.
 
 ## Customisation
 
