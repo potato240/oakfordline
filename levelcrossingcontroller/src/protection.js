@@ -161,13 +161,17 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     // same lead-in machinery UK's amber lamp uses - see Game.updateBarrier()
     // / GERMANY_AMBER_SECONDS), then the red starts flashing alone once it
     // elapses - not both flashing together, and not red-first like every
-    // other style here.
-    parent.add(buildRoundLamp(postX, 2.4, stopZ, 0, lamps));
+    // other style here. Sized up (`radius: 0.22`, vs the `0.16` default) and
+    // spaced further apart (`0.42` between centres, not `0.32`) to match -
+    // stacked two-lamp signal heads read as undersized and overlapping at
+    // the default size/spacing, which is tuned for side-by-side pairs.
+    parent.add(buildRoundLamp(postX, 2.46, stopZ, 0, lamps, { radius: 0.22 }));
     parent.add(
-      buildRoundLamp(postX, 2.08, stopZ, 'amber', lamps, {
+      buildRoundLamp(postX, 2.04, stopZ, 'amber', lamps, {
         onColor: 0xffcc00,
         offColor: 0x4a3a12,
         emissive: 0xffb300,
+        radius: 0.22,
       })
     );
     return;

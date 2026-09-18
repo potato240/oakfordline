@@ -391,8 +391,8 @@ yellow lights steady first and the red only starts flashing once the yellow
 period ends, the same "steady warning colour before the flashing one" shape
 as the UK's amber-then-red, just with the second colour built into the same
 head instead of a separate lamp pair. `buildLamps()`'s `'germany'` branch
-places a plain `phase: 0` red lamp at `y = 2.4` and a `phase: 'amber'`
-yellow lamp at `y = 2.08` directly below it - reusing the exact `'amber'`
+places a plain `phase: 0` red lamp at `y = 2.46` and a `phase: 'amber'`
+yellow lamp at `y = 2.04` directly below it - reusing the exact `'amber'`
 phase tag `uk`'s lamp uses, so `Game.setLamps()` needed no new branch at
 all. `Game.updateBarrier()`'s lead-in trigger only gained an `else if
 (lightStyle === 'germany')` arm picking `GERMANY_AMBER_SECONDS` (2s, its own
@@ -410,6 +410,13 @@ for the entire `amberLeadActive` window while the yellow's never drops to
 clears - `germany` and `uk` never interfere with each other (`amberLeadActive`
 only triggers for the matching `lightStyle`) and the full 54 barrier×light
 combination regression (including `'germany'`) is clean.
+
+Also sized up: both lamps went from the `0.16` default radius to `0.22`,
+and the vertical gap between their centres from `0.32` to `0.42` to match -
+a stacked two-lamp head read too small (and, at the old spacing, the bigger
+lamps would have visually overlapped) compared to every other style's
+side-by-side pairs, which is what the default size/spacing is actually
+tuned for.
 
 **`america` is a real crossbuck signal, not a crossbuck with lamps floating
 beside it at the same height.** A real US crossing's pair of alternately
