@@ -44,10 +44,10 @@ A complete, playable MVP, now with customisation:
 - A small "Next train" box (top right) counting down to the next train's
   arrival - see `Game.nextTrainETA()` below.
 - **Customisation**, chosen on the start screen and persisted to
-  `localStorage`: barrier style (full boom / half barrier / double barrier
-  with skirting / swing gate / trolley gate / none), light style (default /
-  UK / America / Sweden / the Netherlands / none), track count (1-4), and
-  surroundings (default / city / town / farm / village / rural). See
+  `localStorage`: barrier style (full boom / half barrier / double barrier /
+  swing gate / trolley gate / none), light style (default / UK / America /
+  Sweden / the Netherlands / none), track count (1-4), and surroundings
+  (default / city / town / farm / village / rural). See
   "Customisation" below - a settings
   *change* only takes effect on a fresh `Game`, since the scene it builds is
   not something an existing one can rebuild in place.
@@ -172,6 +172,42 @@ zone or car dimensions ever change:
    barrier commanded down immediately still stops cleanly and a train
    passes clean through the zone with zero overlap.
 
+## Lights come on before the barrier actually moves
+
+Real crossings never slam the gate the same instant the lights come on -
+there is always a short lights-only warning first. `Game.updateBarrier()`
+decouples "lights on" from "gate physically moving" to match: the lights
+(`lightsOn = this.barrierTarget === 1 || this.lowered > 0.02`) key off the
+player's *command*, not `this.lowered` alone, while the gate itself is held
+at `this.lowered = 0` for `BARRIER_CLOSE_DELAY` (2s) after a fresh close
+command before it is allowed to start moving:
+
+```js
+if (this.barrierTarget === 1) {
+  if (!this.waitingToClose && this.lowered === 0) {
+    this.waitingToClose = true;
+    this.closeDelayTimer = BARRIER_CLOSE_DELAY;
+  }
+} else {
+  this.waitingToClose = false;
+}
+```
+
+The delay only ever starts fresh from a fully raised gate (`this.lowered ===
+0`) - re-commanding close while already mid-close, or already mid-delay,
+does not restart it. It also only applies to closing: raising
+(`barrierTarget` back to `0`) is immediate, the same as before this change,
+since there is no equivalent safety reason to delay a gate opening back up.
+This is independent of, and can run concurrently with, `uk`'s own amber
+lead-in below - a UK crossing can be in the middle of its 3s amber phase
+while the gate is still separately sitting through its own 2s
+`BARRIER_CLOSE_DELAY`, exactly as two independent real systems would.
+Verified with a scripted run: lamps light within one frame of the command,
+`lowered` stays exactly `0` until just past 2.0s, then reaches fully closed
+by 3.6s (`BARRIER_CLOSE_DELAY` + `BARRIER_SECONDS`); commanding the gate
+back open afterwards decreases `lowered` from the very first following
+frame, confirming raising has no equivalent delay.
+
 ## The warning has to actually turn off again
 
 `Train.distanceToZone()` returns the *signed* distance from a train's
@@ -285,15 +321,31 @@ balance, it belongs in `Game.advanceLane()`'s stop-line clamp, not in
 **`protection.js`** builds one `{group, apply(lowered)}` per approach via
 `buildProtectionUnit()`, regardless of which gate kind was picked - a boom
 pivots about a horizontal (Z) axis (`default`/`half`, differing only in
-`boomLength`), `double` shares that same pivot rotation but carries *two*
-arms one above the other plus a solid skirt panel hanging from the lower one
-down almost to the road (closing the gap a single boom leaves underneath it
-- a real high-security "full barrier" feature, not just a second arm for its
-own sake), a `swing` gate pivots about a *vertical* (Y) axis instead (open =
-parallel to the road, closed = swung across it), and a `trolley` gate
-translates sideways along an overhead rail rather than rotating at all.
+`boomLength`), a `swing` gate pivots about a *vertical* (Y) axis instead
+(open = parallel to the road, closed = swung across it), and a `trolley`
+gate translates sideways along an overhead rail rather than rotating at all.
 `Game.updateBarrier()` does not need to know which: it just calls
-`unit.apply(this.lowered)` for each approach every frame. Light styles
+`unit.apply(this.lowered)` for each approach every frame.
+
+**`double` is modelled on a real UK "MCB-OD" crossing, not just given a
+second arm.** A real double-barrier crossing does not use one arm spanning
+the whole road from a single edge - it stands a separate post on *each*
+side, with a shorter lattice-mesh arm from each closing in toward the
+middle until they overlap there. An earlier version got this wrong: it put
+two solid arms one above the other on the *same* single post, with a skirt
+panel hanging below - a "second boom for its own sake" that doesn't match
+how any real double-barrier crossing is actually built. `buildLatticeArm()`
+builds one post's worth (a striped top rail, a plain lower rail, and a row
+of pickets between them forming the mesh infill, pivoting about Z exactly
+like `buildBoomGate()`'s single arm); `buildDoubleBarrierGate()` calls it
+twice - once reusing the *existing* light post's position
+(`postX`/`reachDirection`, same signature every other gate builder takes),
+once for a new post at the mirrored position on the opposite edge, with the
+opposite reach direction. Verified against a reference photo of a real UK
+double-barrier crossing: two posts, two arms closing from opposite edges
+with a small overlap in the middle, not two arms on one post.
+
+Light styles
 (`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/
 stacked), and flash behaviour (alternating/in-phase) - **stylised,
 simplified homages, not accurate reproductions of any real country's actual

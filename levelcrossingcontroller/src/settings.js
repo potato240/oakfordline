@@ -6,7 +6,7 @@ import { TRACK_HALF_WIDTH, TRACK_SPACING } from './constants.js';
 export const BARRIER_TYPES = [
   { value: 'default', label: 'Default (full boom)' },
   { value: 'half', label: 'Half barrier' },
-  { value: 'double', label: 'Double barrier (skirted)' },
+  { value: 'double', label: 'Double barrier' },
   { value: 'swing', label: 'Swing gate' },
   { value: 'trolley', label: 'Trolley gate' },
   { value: 'none', label: 'None' },

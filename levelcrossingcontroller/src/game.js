@@ -17,6 +17,7 @@ import {
   TRAIN_MIN_SPEED,
   TRAIN_MAX_SPEED,
   BARRIER_SECONDS,
+  BARRIER_CLOSE_DELAY,
   FLASH_INTERVAL,
   UK_AMBER_SECONDS,
   WARNING_LEAD_TIME,
@@ -71,6 +72,8 @@ export class Game {
     this.flashState = 0;
     this.warningActive = false;
     this.wasLightsOn = false;
+    this.waitingToClose = false; // BARRIER_CLOSE_DELAY countdown active - see updateBarrier()
+    this.closeDelayTimer = 0;
     this.ukAmberActive = false; // lightStyle 'uk' only - see updateBarrier()
     this.ukAmberTimer = 0;
 
@@ -161,16 +164,44 @@ export class Game {
   }
 
   updateBarrier(delta) {
+    // Lights come on the instant the barrier is *commanded* down, but the
+    // gate itself holds still for BARRIER_CLOSE_DELAY before it is actually
+    // allowed to start moving - "warn first, then act". Only closing waits;
+    // raising (barrierTarget back to 0) is immediate, same as before. The
+    // delay only ever starts fresh from a fully raised gate - re-commanding
+    // close while already mid-close (or mid-delay) does not restart it.
+    if (this.barrierTarget === 1) {
+      if (!this.waitingToClose && this.lowered === 0) {
+        this.waitingToClose = true;
+        this.closeDelayTimer = BARRIER_CLOSE_DELAY;
+      }
+    } else {
+      this.waitingToClose = false;
+    }
+
+    let moveTarget = this.barrierTarget;
+    if (this.waitingToClose) {
+      this.closeDelayTimer -= delta;
+      if (this.closeDelayTimer > 0) {
+        moveTarget = this.lowered; // held at 0 - not allowed to move yet
+      } else {
+        this.waitingToClose = false; // delay elapsed - closing can proceed
+      }
+    }
+
     const step = delta / BARRIER_SECONDS;
-    if (this.lowered < this.barrierTarget) {
-      this.lowered = Math.min(this.barrierTarget, this.lowered + step);
-    } else if (this.lowered > this.barrierTarget) {
-      this.lowered = Math.max(this.barrierTarget, this.lowered - step);
+    if (this.lowered < moveTarget) {
+      this.lowered = Math.min(moveTarget, this.lowered + step);
+    } else if (this.lowered > moveTarget) {
+      this.lowered = Math.max(moveTarget, this.lowered - step);
     }
 
     for (const unit of this.protectionUnits) unit.apply(this.lowered);
 
-    const lightsOn = this.lowered > 0.02;
+    // On, from the command, the instant it is given - not from `lowered`
+    // alone, which is what would make the lights wait for BARRIER_CLOSE_DELAY
+    // too instead of warning *before* the gate actually moves.
+    const lightsOn = this.barrierTarget === 1 || this.lowered > 0.02;
 
     // The real UK sequence: a steady amber lead-in before the reds ever
     // start flashing, starting fresh every time the lights come on from

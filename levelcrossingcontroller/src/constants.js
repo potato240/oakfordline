@@ -50,6 +50,13 @@ export const TRAIN_MAX_SPEED = 22;
 export const BARRIER_SECONDS = 1.6; // time for a boom to travel fully up/down
 export const FLASH_INTERVAL = 0.5; // lamp alternation while the barrier is active
 
+// Lights turn on the instant the barrier is commanded down, but the gate
+// itself waits this long before it actually starts moving - "warn first,
+// then act", real crossings never slam the gate the same instant the
+// lights come on. Only applies to closing; raising is immediate, since
+// there is no equivalent safety reason to delay that.
+export const BARRIER_CLOSE_DELAY = 2;
+
 // Real UK level crossing signals show a steady amber for this long before
 // the red lamps start flashing - lightStyle: 'uk' only (protection.js /
 // Game.updateBarrier()). Every other light style flashes red immediately.

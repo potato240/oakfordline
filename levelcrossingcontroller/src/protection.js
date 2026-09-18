@@ -159,44 +159,44 @@ function buildBoomGate(postX, stopZ, reachDirection, boomLength) {
   };
 }
 
-// Two boom arms one above the other, plus a solid skirt panel hanging from
-// the lower arm down almost to the road - the way a real high-security
-// "full barrier" crossing closes off the gap a single boom would otherwise
-// leave underneath it, rather than relying on a driver simply not trying to
-// duck under. Both arms and the skirt share one pivot, so they move as one
-// rigid gate exactly like buildBoomGate()'s single arm does.
-function buildDoubleBoomGate(postX, stopZ, reachDirection) {
-  const boomLength = ROAD_HALF_WIDTH * 2 + 0.6;
+// One post plus one lattice-mesh arm pivoting about a horizontal (Z) axis,
+// the same up/down boom motion as buildBoomGate() - but the arm itself is a
+// diagonal striped rail with a second, lower rail and a row of pickets
+// between them, closing the gap under the arm the way a real UK "MCB-OD"
+// double-barrier crossing's wire mesh does, rather than a bare bar. Used in
+// pairs by buildDoubleBarrierGate() below - one from each side of the road.
+function buildLatticeArm(postX, stopZ, reachDirection, armLength) {
   const pivot = new THREE.Group();
-  pivot.position.set(postX, 1.55, stopZ);
+  pivot.position.set(postX, 1.4, stopZ);
 
-  function addArm(localY) {
-    const boomGeometry = new THREE.BoxGeometry(boomLength, 0.1, 0.1);
-    boomGeometry.translate((reachDirection * boomLength) / 2, 0, 0);
-    const boom = new THREE.Mesh(boomGeometry, materials.boomWhite);
-    boom.position.y = localY;
-    boom.castShadow = true;
-    pivot.add(boom);
+  const railGeometry = () => {
+    const g = new THREE.BoxGeometry(armLength, 0.1, 0.1);
+    g.translate((reachDirection * armLength) / 2, 0, 0);
+    return g;
+  };
 
-    const bandCount = Math.max(2, Math.round(boomLength / 1.6));
-    for (let i = 0; i < bandCount; i++) {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.12), materials.boomRed);
-      band.position.set(reachDirection * (0.8 + i * 1.6), localY, 0);
-      pivot.add(band);
-    }
+  const topRail = new THREE.Mesh(railGeometry(), materials.boomWhite);
+  topRail.castShadow = true;
+  pivot.add(topRail);
+
+  const bandCount = Math.max(2, Math.round(armLength / 1.4));
+  for (let i = 0; i < bandCount; i++) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.12, 0.12), materials.boomRed);
+    band.position.x = reachDirection * (0.6 + i * 1.4);
+    pivot.add(band);
   }
 
-  const lowerArmY = -0.55;
-  addArm(0); // upper arm
-  addArm(lowerArmY); // lower arm
+  const bottomRailY = -0.55;
+  const bottomRail = new THREE.Mesh(railGeometry(), materials.rail);
+  bottomRail.position.y = bottomRailY;
+  pivot.add(bottomRail);
 
-  const skirtHeight = 0.9;
-  const skirtGeometry = new THREE.BoxGeometry(boomLength - 0.6, skirtHeight, 0.05);
-  skirtGeometry.translate((reachDirection * (boomLength - 0.6)) / 2, 0, 0);
-  const skirt = new THREE.Mesh(skirtGeometry, materials.boomWhite);
-  skirt.position.y = lowerArmY - skirtHeight / 2; // hangs down from the lower arm
-  skirt.castShadow = true;
-  pivot.add(skirt);
+  const picketCount = Math.max(5, Math.round(armLength / 0.35));
+  for (let i = 0; i < picketCount; i++) {
+    const picket = new THREE.Mesh(new THREE.BoxGeometry(0.03, Math.abs(bottomRailY), 0.03), materials.rail);
+    picket.position.set(reachDirection * (i + 0.5) * (armLength / picketCount), bottomRailY / 2, 0);
+    pivot.add(picket);
+  }
 
   pivot.rotation.z = reachDirection * (Math.PI / 2); // raised, to start
 
@@ -204,6 +204,36 @@ function buildDoubleBoomGate(postX, stopZ, reachDirection) {
     group: pivot,
     apply(lowered) {
       pivot.rotation.z = reachDirection * (1 - lowered) * (Math.PI / 2);
+    },
+  };
+}
+
+// A real UK-style "double barrier" (MCB-OD) crossing does not use one arm
+// spanning the whole road from a single edge - it has a separate post on
+// *each* side, with a shorter lattice arm from each closing in toward the
+// middle, overlapping there once both are down. `postX`/`reachDirection`
+// here describe the near side, matching every other gate builder's
+// signature (`buildProtectionUnit()` already stands a light post there);
+// the far side is this function's own mirror image, including its own post
+// (nothing else builds one there).
+function buildDoubleBarrierGate(postX, stopZ, reachDirection) {
+  const armLength = ROAD_HALF_WIDTH + 0.6; // reaches just past the centreline
+
+  const near = buildLatticeArm(postX, stopZ, reachDirection, armLength);
+
+  const farPostX = -postX;
+  const farReachDirection = -reachDirection;
+  const far = buildLatticeArm(farPostX, stopZ, farReachDirection, armLength);
+  const farPost = buildPost(farPostX, stopZ);
+
+  const group = new THREE.Group();
+  group.add(near.group, far.group, farPost);
+
+  return {
+    group,
+    apply(lowered) {
+      near.apply(lowered);
+      far.apply(lowered);
     },
   };
 }
@@ -300,7 +330,7 @@ function buildGate(type, postX, stopZ, reachDirection) {
     case 'half':
       return buildBoomGate(postX, stopZ, reachDirection, ROAD_HALF_WIDTH + 0.6);
     case 'double':
-      return buildDoubleBoomGate(postX, stopZ, reachDirection);
+      return buildDoubleBarrierGate(postX, stopZ, reachDirection);
     case 'swing':
       return buildSwingGate(postX, stopZ, reachDirection);
     case 'trolley':
