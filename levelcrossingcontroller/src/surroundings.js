@@ -156,10 +156,16 @@ function fieldPatch(w, d) {
 }
 
 // Places `count` props via `place(random)`, each rejected and retried while
-// it falls inside the crossing's own clearance rectangle - the same idea as
-// Oakford Line's tree placement, generalised to an arbitrary clear box
-// instead of a fixed "distance from x = 0" formula, since this game's
-// danger zone can be wide (more tracks) or narrow depending on settings.
+// it falls on the road or the track. The road runs the *entire* Z length of
+// the world at |x| <= clearHalfX, and the track the entire X length at
+// |z| <= clearHalfZ - each is a full-length strip, not just a box around
+// the crossing itself - so a candidate is clear only once it is outside
+// *both* strips at once (`&&`, not `||`). Getting this backwards (an
+// earlier version used `||`) only rejects the small box where both strips
+// overlap near the crossing, leaving a building free to land anywhere else
+// along the road (any x with |x| <= clearHalfX, however far from the
+// crossing in z) or along the track (any z with |z| <= clearHalfZ) - which
+// is exactly how buildings ended up sitting on the road.
 function scatter(group, random, count, clearHalfX, clearHalfZ, place) {
   for (let i = 0; i < count; i++) {
     let x, z;
@@ -167,7 +173,7 @@ function scatter(group, random, count, clearHalfX, clearHalfZ, place) {
     for (let attempt = 0; attempt < 8 && !clear; attempt++) {
       x = (random() - 0.5) * WORLD_HALF_X * 2.2;
       z = (random() - 0.5) * WORLD_HALF_Z * 2.2;
-      clear = Math.abs(x) > clearHalfX || Math.abs(z) > clearHalfZ;
+      clear = Math.abs(x) > clearHalfX && Math.abs(z) > clearHalfZ;
     }
     if (!clear) continue;
 

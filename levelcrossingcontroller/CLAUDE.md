@@ -44,10 +44,11 @@ A complete, playable MVP, now with customisation:
 - A small "Next train" box (top right) counting down to the next train's
   arrival - see `Game.nextTrainETA()` below.
 - **Customisation**, chosen on the start screen and persisted to
-  `localStorage`: barrier style (full boom / half barrier / swing gate /
-  trolley gate / none), light style (default / UK / America / Sweden / the
-  Netherlands / none), track count (1-4), and surroundings (default / city /
-  town / farm / village / rural). See "Customisation" below - a settings
+  `localStorage`: barrier style (full boom / half barrier / double barrier
+  with skirting / swing gate / trolley gate / none), light style (default /
+  UK / America / Sweden / the Netherlands / none), track count (1-4), and
+  surroundings (default / city / town / farm / village / rural). See
+  "Customisation" below - a settings
   *change* only takes effect on a fresh `Game`, since the scene it builds is
   not something an existing one can rebuild in place.
 
@@ -284,19 +285,22 @@ balance, it belongs in `Game.advanceLane()`'s stop-line clamp, not in
 **`protection.js`** builds one `{group, apply(lowered)}` per approach via
 `buildProtectionUnit()`, regardless of which gate kind was picked - a boom
 pivots about a horizontal (Z) axis (`default`/`half`, differing only in
-`boomLength`), a `swing` gate pivots about a *vertical* (Y) axis instead
-(open = parallel to the road, closed = swung across it), and a `trolley`
-gate translates sideways along an overhead rail rather than rotating at all.
+`boomLength`), `double` shares that same pivot rotation but carries *two*
+arms one above the other plus a solid skirt panel hanging from the lower one
+down almost to the road (closing the gap a single boom leaves underneath it
+- a real high-security "full barrier" feature, not just a second arm for its
+own sake), a `swing` gate pivots about a *vertical* (Y) axis instead (open =
+parallel to the road, closed = swung across it), and a `trolley` gate
+translates sideways along an overhead rail rather than rotating at all.
 `Game.updateBarrier()` does not need to know which: it just calls
 `unit.apply(this.lowered)` for each approach every frame. Light styles
 (`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/
-stacked), flash behaviour (alternating/in-phase), and whether a crossbuck or
-banded post accompanies them - **stylised, simplified homages, not accurate
-reproductions of any real country's actual signalling standard - except
-`uk`, which is a deliberate exception** (see below).
-`lightStyle: 'none'` suppresses `playWarningDing()` entirely, not just the
-lamp mesh - it represents no warning *system*, audio included, not merely
-invisible lamps that still ring a bell.
+stacked), and flash behaviour (alternating/in-phase) - **stylised,
+simplified homages, not accurate reproductions of any real country's actual
+signalling standard, except `uk` and `america`, both deliberate exceptions**
+(see below). `lightStyle: 'none'` suppresses `playWarningDing()` entirely,
+not just the lamp mesh - it represents no warning *system*, audio included,
+not merely invisible lamps that still ring a bell.
 
 **`uk` is modelled on the real sequence, not just given a different look.**
 Real UK level crossing road signals show a single steady amber lamp for a
@@ -314,14 +318,24 @@ lit steady; once it elapses, `ukAmberActive` clears and the normal
 `Game.setLamps()` has one extra branch for this: a lamp with `phase ===
 'amber'` is lit purely by `ukAmberActive`, never by `flashState`, so it can
 never accidentally join the reds' alternation. The UK post is also
-deliberately left plain (unlike America's banded one) - a banded post was
-never a real UK feature, the amber-then-red sequence is what actually
-distinguishes it. Verified with a scripted run: amber lights within one
-frame of the barrier starting to lower and stays lit steady for exactly
-`UK_AMBER_SECONDS`, the reds stay dark the entire time, and only then do
-they start alternating (confirmed genuinely alternating, never both lit
-together) - and every other light style is unaffected (`ukAmberActive`
+deliberately left plain - a banded post was never a real UK feature (an
+earlier version had one; removed, along with banding for every style, once
+it became clear it wasn't accurate anywhere), the amber-then-red sequence is
+what actually distinguishes it. Verified with a scripted run: amber lights
+within one frame of the barrier starting to lower and stays lit steady for
+exactly `UK_AMBER_SECONDS`, the reds stay dark the entire time, and only
+then do they start alternating (confirmed genuinely alternating, never both
+lit together) - and every other light style is unaffected (`ukAmberActive`
 never becomes `true` unless `lightStyle` is `'uk'`).
+
+**`america` is a real crossbuck signal, not a crossbuck with lamps floating
+beside it at the same height.** A real US crossing's pair of alternately
+flashing red lamps mount on the signal mast *below* the crossbuck board, not
+spread out either side of it - an earlier version put them at the same
+height as the crossbuck, which reads as decorative rather than as one
+recognisable assembly. `buildLamps()`'s `'america'` branch now places them
+at `y = 1.55`, half a metre below the crossbuck's own `y = 2.05`, close
+together (`±0.3` apart, not `±0.35` spread either side of the post).
 
 **Track count widens the danger corridor, not the train spawn rate.**
 `TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on
@@ -340,11 +354,25 @@ track. Verified directly: `combinedHalfWidth` for 1/2/4 tracks is
 **Surroundings** (`surroundings.js`) scatter decorative props (trees,
 towers, cottages, a barn/silo/hay bales/fences for farm, etc.) via the same
 deterministic-random-plus-rejection-sampling idea Oakford Line's own tree
-placement uses, clear of a box around the crossing sized from the *current*
-`combinedHalfWidth` - so a 4-track crossing with a dense `city` preset never
-spawns a tower on top of the extra tracks just because it was tuned against
-the 1-track case. `surroundings: 'default'` deliberately returns nothing
-- the bare look the game always had before this setting existed.
+placement uses. `scatter()`'s clearance check has to reject *two full-length
+strips* - the road runs the entire Z length of the world at
+`|x| <= clearHalfX`, and the track the entire X length at
+`|z| <= clearHalfZ` - not just a box around the crossing itself, so a
+candidate is only clear once it is outside **both** strips at once (`&&`).
+**A real bug lived here**: an earlier version used `||`, which only rejects
+the small box where the two strips overlap near the crossing, leaving a
+building free to land anywhere else along the road (any `x` inside
+`clearHalfX`, however far away in `z`) or along the track (any `z` inside
+`clearHalfZ`, however far away in `x`) - exactly how buildings ended up
+sitting on the road. Both `clearHalfX`/`clearHalfZ` are sized from the
+*current* `combinedHalfWidth`, so a 4-track crossing with a dense `city`
+preset never spawns a tower on top of the extra tracks just because it was
+tuned against the 1-track case. `surroundings: 'default'` deliberately
+returns nothing - the bare look the game always had before this setting
+existed. Verified by checking every scattered prop's actual world position
+across all five non-default presets: 0 violations out of 284 meshes against
+a 3-track-wide corridor (the old `||` logic, re-run the same way for
+comparison, put 16 out of 200 sample points on the road or track).
 
 ## Verifying changes here
 

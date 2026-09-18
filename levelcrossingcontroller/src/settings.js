@@ -6,15 +6,17 @@ import { TRACK_HALF_WIDTH, TRACK_SPACING } from './constants.js';
 export const BARRIER_TYPES = [
   { value: 'default', label: 'Default (full boom)' },
   { value: 'half', label: 'Half barrier' },
+  { value: 'double', label: 'Double barrier (skirted)' },
   { value: 'swing', label: 'Swing gate' },
   { value: 'trolley', label: 'Trolley gate' },
   { value: 'none', label: 'None' },
 ];
 
 // These are stylised, simplified homages to how different countries'
-// crossings tend to look (a banded post here, a crossbuck there, lamps
-// arranged differently) - not accurate reproductions of any real country's
-// actual signalling standard.
+// crossings tend to look (a crossbuck here, lamps arranged differently
+// there) - not accurate reproductions of any real country's actual
+// signalling standard, except 'uk' and 'america', which are modelled on
+// the real thing more deliberately (see protection.js).
 export const LIGHT_STYLES = [
   { value: 'default', label: 'Default' },
   { value: 'uk', label: 'UK' },

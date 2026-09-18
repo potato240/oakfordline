@@ -10,8 +10,6 @@ import { ROAD_HALF_WIDTH } from './constants.js';
 
 const materials = {
   post: new THREE.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.7 }),
-  postBandLight: new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }),
-  postBandDark: new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.6 }),
   boomWhite: new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }),
   boomRed: new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }),
   rail: new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.6, metalness: 0.4 }),
@@ -28,29 +26,11 @@ function unlitLampMaterial(offColor = 0x5c1512, emissive = 0xff2a1a) {
   });
 }
 
-// A plain post, or one with alternating light/dark bands (used to tell the
-// UK/America light styles apart from the plain default post at a glance).
-function buildPost(postX, stopZ, banded) {
-  if (!banded) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.4, 10), materials.post);
-    post.position.set(postX, 1.2, stopZ);
-    post.castShadow = true;
-    return post;
-  }
-
-  const group = new THREE.Group();
-  const bandHeight = 0.4;
-  const bandCount = 6;
-  for (let i = 0; i < bandCount; i++) {
-    const band = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.12, bandHeight, 10),
-      i % 2 === 0 ? materials.postBandLight : materials.postBandDark
-    );
-    band.position.set(postX, i * bandHeight + bandHeight / 2, stopZ);
-    band.castShadow = true;
-    group.add(band);
-  }
-  return group;
+function buildPost(postX, stopZ) {
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 2.4, 10), materials.post);
+  post.position.set(postX, 1.2, stopZ);
+  post.castShadow = true;
+  return post;
 }
 
 function buildRoundLamp(x, y, z, phase, lamps, options = {}) {
@@ -91,9 +71,13 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
   if (style === 'none') return;
 
   if (style === 'america') {
+    // A real US crossbuck signal is the crossbuck board with the pair of
+    // alternately-flashing red lamps mounted on the mast *below* it, close
+    // together - not spread out either side of it at the same height,
+    // which is what this used to do.
     parent.add(buildCrossbuck(postX, stopZ));
-    for (const offset of [-0.35, 0.35]) {
-      parent.add(buildRoundLamp(postX + offset, 2.25, stopZ, offset > 0 ? 1 : 0, lamps));
+    for (const offset of [-0.3, 0.3]) {
+      parent.add(buildRoundLamp(postX + offset, 1.55, stopZ, offset > 0 ? 1 : 0, lamps));
     }
     return;
   }
@@ -164,6 +148,55 @@ function buildBoomGate(postX, stopZ, reachDirection, boomLength) {
     band.position.x = reachDirection * (0.8 + i * 1.6);
     pivot.add(band);
   }
+
+  pivot.rotation.z = reachDirection * (Math.PI / 2); // raised, to start
+
+  return {
+    group: pivot,
+    apply(lowered) {
+      pivot.rotation.z = reachDirection * (1 - lowered) * (Math.PI / 2);
+    },
+  };
+}
+
+// Two boom arms one above the other, plus a solid skirt panel hanging from
+// the lower arm down almost to the road - the way a real high-security
+// "full barrier" crossing closes off the gap a single boom would otherwise
+// leave underneath it, rather than relying on a driver simply not trying to
+// duck under. Both arms and the skirt share one pivot, so they move as one
+// rigid gate exactly like buildBoomGate()'s single arm does.
+function buildDoubleBoomGate(postX, stopZ, reachDirection) {
+  const boomLength = ROAD_HALF_WIDTH * 2 + 0.6;
+  const pivot = new THREE.Group();
+  pivot.position.set(postX, 1.55, stopZ);
+
+  function addArm(localY) {
+    const boomGeometry = new THREE.BoxGeometry(boomLength, 0.1, 0.1);
+    boomGeometry.translate((reachDirection * boomLength) / 2, 0, 0);
+    const boom = new THREE.Mesh(boomGeometry, materials.boomWhite);
+    boom.position.y = localY;
+    boom.castShadow = true;
+    pivot.add(boom);
+
+    const bandCount = Math.max(2, Math.round(boomLength / 1.6));
+    for (let i = 0; i < bandCount; i++) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.12, 0.12), materials.boomRed);
+      band.position.set(reachDirection * (0.8 + i * 1.6), localY, 0);
+      pivot.add(band);
+    }
+  }
+
+  const lowerArmY = -0.55;
+  addArm(0); // upper arm
+  addArm(lowerArmY); // lower arm
+
+  const skirtHeight = 0.9;
+  const skirtGeometry = new THREE.BoxGeometry(boomLength - 0.6, skirtHeight, 0.05);
+  skirtGeometry.translate((reachDirection * (boomLength - 0.6)) / 2, 0, 0);
+  const skirt = new THREE.Mesh(skirtGeometry, materials.boomWhite);
+  skirt.position.y = lowerArmY - skirtHeight / 2; // hangs down from the lower arm
+  skirt.castShadow = true;
+  pivot.add(skirt);
 
   pivot.rotation.z = reachDirection * (Math.PI / 2); // raised, to start
 
@@ -266,6 +299,8 @@ function buildGate(type, postX, stopZ, reachDirection) {
       return buildBoomGate(postX, stopZ, reachDirection, ROAD_HALF_WIDTH * 2 + 0.6);
     case 'half':
       return buildBoomGate(postX, stopZ, reachDirection, ROAD_HALF_WIDTH + 0.6);
+    case 'double':
+      return buildDoubleBoomGate(postX, stopZ, reachDirection);
     case 'swing':
       return buildSwingGate(postX, stopZ, reachDirection);
     case 'trolley':
@@ -287,10 +322,7 @@ export function buildProtectionUnit(stopZ, postSide, barrierType, lightStyle, la
   const reachDirection = -postSide;
 
   if (barrierType !== 'none' || lightStyle !== 'none') {
-    // Real UK signal posts are plain - the amber-before-red sequence is
-    // what actually tells the UK style apart, not a banded post (that
-    // stays an America-only distinguisher).
-    group.add(buildPost(postX, stopZ, lightStyle === 'america'));
+    group.add(buildPost(postX, stopZ));
   }
 
   buildLamps(lightStyle, postX, stopZ, group, lamps);
