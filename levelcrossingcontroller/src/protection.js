@@ -91,14 +91,27 @@ function buildWigWagUnit(postX, stopZ, lamps) {
   return pivot;
 }
 
-function buildCrossbuck(postX, stopZ, material = materials.boomWhite) {
+function buildCrossbuck(postX, stopZ, material = materials.boomWhite, options = {}) {
+  const { striped = false } = options;
   const group = new THREE.Group();
   for (const angle of [Math.PI / 4, -Math.PI / 4]) {
+    const boardGroup = new THREE.Group();
+    boardGroup.position.set(postX, 2.05, stopZ);
+    boardGroup.rotation.z = angle;
     const board = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.16, 0.05), material);
-    board.position.set(postX, 2.05, stopZ);
-    board.rotation.z = angle;
     board.castShadow = true;
-    group.add(board);
+    boardGroup.add(board);
+    // The Dutch "Andreaskruis" is red/white candy-striped, not a plain
+    // board - three red bands laid across each arm, the same banding
+    // approach the boom gates use for their own red/white markings.
+    if (striped) {
+      for (const offset of [-0.45, 0, 0.45]) {
+        const band = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.17, 0.06), materials.boomRed);
+        band.position.x = offset;
+        boardGroup.add(band);
+      }
+    }
+    group.add(boardGroup);
   }
   return group;
 }
@@ -122,10 +135,17 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
   }
 
   if (style === 'netherlands') {
-    parent.add(buildCrossbuck(postX, stopZ));
-    // Stacked vertically rather than side by side, unlike every other style.
-    for (const [i, offset] of [-0.22, 0.22].entries()) {
-      parent.add(buildRoundLamp(postX, 2.55 + offset, stopZ, i, lamps));
+    // A real Dutch crossing's Andreaskruis is red/white striped, not plain
+    // white, and its pair of alternately flashing red lamps mount side by
+    // side in a single black housing below the cross - not stacked
+    // vertically on the bare post like this used to do.
+    parent.add(buildCrossbuck(postX, stopZ, materials.boomWhite, { striped: true }));
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.34, 0.16), materials.rail);
+    housing.position.set(postX, 1.6, stopZ);
+    housing.castShadow = true;
+    parent.add(housing);
+    for (const offset of [-0.17, 0.17]) {
+      parent.add(buildRoundLamp(postX + offset, 1.6, stopZ, offset > 0 ? 1 : 0, lamps));
     }
     return;
   }

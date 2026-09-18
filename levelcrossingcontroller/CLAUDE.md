@@ -350,9 +350,10 @@ Light styles
 stacked), and flash behaviour (alternating/in-phase) - **stylised,
 simplified homages, not accurate reproductions of any real country's actual
 signalling standard, except `uk` and `america` (deliberate exceptions, see
-below), `france` (two confirmed real details, see below), and `germany`
+below), `france` (two confirmed real details, see below), `germany`
 (the stacked red-over-yellow head and its amber-lead-in sequence, see
-below)**.
+below), and `netherlands` (the striped Andreaskruis and its side-by-side
+lamp housing, see below)**.
 `lightStyle: 'none'` suppresses `playWarningDing()` entirely, not
 just the lamp mesh - it represents no warning *system*, audio included, not
 merely invisible lamps that still ring a bell.
@@ -427,11 +428,31 @@ recognisable assembly. `buildLamps()`'s `'america'` branch now places them
 at `y = 1.55`, half a metre below the crossbuck's own `y = 2.05`, close
 together (`±0.3` apart, not `±0.35` spread either side of the post).
 
+**`netherlands` has two confirmed real details of its own, not a stylised
+guess.** A real Dutch crossing's "Andreaskruis" is red/white candy-striped,
+not a plain white board - and its pair of alternately flashing red lamps
+mount side by side in a single black housing below the cross, not stacked
+vertically on the bare post, which is what an earlier version did (a guess,
+not a real feature). `buildCrossbuck()` gained a `striped` option (its
+`options` argument, alongside the existing `material` one) that lays three
+red bands across each arm, the same banding approach the boom gates already
+use for their own red/white markings, just as children of a per-arm group
+so the bands rotate correctly with their arm. `buildLamps()`'s
+`'netherlands'` branch now adds a `materials.rail` (dark grey) housing box
+at `y = 1.6` and places the two lamps side by side on it (`±0.17`, phases
+`0`/`1`), rather than one above the other. Verified directly: the two lamps
+sit at the same `y` (no longer stacked), genuinely alternate over time (30
+frames with lamp A lit and B dark, 30 with the reverse, never both at once
+in a 60-frame sample), and the crossbuck now carries three red bands per
+arm rather than being a single plain-white board - confirmed visually
+against a reference photo of a real Dutch Andreaskruis-and-signal assembly.
+
 **`france` has two confirmed real details, not a full verified sequence
 like `uk`/`america`**: the crossbuck ("croix de Saint-André") is red, not
 white with black lettering like the US one (`buildCrossbuck()` gained a
-`material` parameter for exactly this, defaulting to white so `america`/
-`netherlands` are unchanged); and a real French crossing signal is a
+`material` parameter for exactly this, defaulting to white so `america` is
+unchanged, and now also a `striped` option `netherlands` alone uses); and a
+real French crossing signal is a
 *single* flashing light, not an alternating pair - every other lit style
 here uses two. **This one shipped wrong the first time**: the initial
 version gave `france` the same two-lamp side-by-side arrangement as
