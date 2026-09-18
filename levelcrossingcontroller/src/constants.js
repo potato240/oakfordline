@@ -39,7 +39,7 @@ export const FLASH_INTERVAL = 0.5; // lamp alternation while the barrier is acti
 // How long before a train reaches the danger zone the warning (lights +
 // bell) starts - has to comfortably exceed BARRIER_SECONDS or a perfectly
 // timed player still could not get the barrier down in time.
-export const WARNING_LEAD_TIME = 5.5;
+export const WARNING_LEAD_TIME = 10.5;
 
 // Cars still ramp from *_START down to *_MIN over RAMP_SECONDS of play, then
 // hold at the minimum, getting more frequent as a run goes on.
@@ -52,7 +52,7 @@ export const CAR_INTERVAL_MIN = 1.6;
 // straight from THREE.MathUtils.lerp(TRAIN_INTERVAL_MIN, TRAIN_INTERVAL_MAX,
 // Math.random()), no extra jitter multiplier on top - the range itself is
 // the variation). TRAIN_INTERVAL_MIN only has to clear WARNING_LEAD_TIME
-// (5.5s) comfortably, which 30s does many times over - the old ramp-based
+// (10.5s) comfortably, which 30s does many times over - the old ramp-based
 // tuning existed specifically to avoid warnings/barriers getting stuck on
 // back-to-back near a much lower floor (see git history), which is not a
 // concern at these intervals.
