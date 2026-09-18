@@ -7,6 +7,11 @@ const ROAD_HALF_WIDTH = 3.5; // half the road width, measured along Z
 const BOOM_LENGTH = ROAD_HALF_WIDTH * 2 + 0.6; // reaches the far kerb
 const POST_X = 5.6; // how far out from the track centre the posts stand
 
+// How far past the branch line's far rail the extended road keeps going,
+// for a crossing whose road continues out to it - just enough to clear the
+// timber deck rather than ending flush with it.
+const BRANCH_ROAD_MARGIN = 6;
+
 // Warning starts this far out, and clears once the train is this far past.
 const WARN_DISTANCE = 150;
 const CLEAR_DISTANCE = 34;
@@ -25,33 +30,79 @@ const materials = {
   boomRed: new THREE.MeshStandardMaterial({ color: 0xc0392b, roughness: 0.6 }),
 };
 
-function createRoad() {
+// Timber deck carrying the road over the ballast and between the rails, at
+// a given local X - the main line's own deck sits at x = 0, a branch deck
+// (see below) sits out at the branch's own track X instead.
+function createDeck(x) {
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(7.2, RAIL_TOP_Y - BALLAST_HEIGHT + 0.06, ROAD_HALF_WIDTH * 2),
+    materials.deck
+  );
+  deck.position.set(x, BALLAST_HEIGHT + (RAIL_TOP_Y - BALLAST_HEIGHT) / 2, 0);
+  deck.receiveShadow = true;
+  return deck;
+}
+
+// A crossing whose road is adjacent to the branch line continues straight
+// out to it - one road, one straight run, rather than a second disconnected
+// crossing - and gets a second, gateless deck over the branch's own rails at
+// branchX. Unlike the main line's protected crossings (booms, flashing
+// lamps, a bell), this second deck is deliberately an "open" crossing - no
+// barriers, just a crossbuck - since it is not wired to the branch train's
+// own approach the way the main crossings are wired to Train.
+function createRoad(branchX) {
   const group = new THREE.Group();
 
+  const farEdge = branchX != null ? branchX + BRANCH_ROAD_MARGIN : ROAD_HALF_LENGTH;
+  const length = ROAD_HALF_LENGTH + farEdge;
+  const centreX = (farEdge - ROAD_HALF_LENGTH) / 2;
+
   const road = new THREE.Mesh(
-    new THREE.BoxGeometry(ROAD_HALF_LENGTH * 2, 0.06, ROAD_HALF_WIDTH * 2),
+    new THREE.BoxGeometry(length, 0.06, ROAD_HALF_WIDTH * 2),
     materials.road
   );
-  road.position.y = 0.03;
+  road.position.set(centreX, 0.03, 0);
   road.receiveShadow = true;
   group.add(road);
 
-  // Dashed centre line, broken where the railway crosses.
-  for (let x = -ROAD_HALF_LENGTH; x < ROAD_HALF_LENGTH; x += 6) {
+  // Dashed centre line, broken where either railway crosses.
+  for (let x = -ROAD_HALF_LENGTH; x < farEdge; x += 6) {
     if (Math.abs(x) < 9) continue;
+    if (branchX != null && Math.abs(x - branchX) < 9) continue;
     const dash = new THREE.Mesh(new THREE.BoxGeometry(3, 0.02, 0.16), materials.marking);
     dash.position.set(x + 1.5, 0.07, 0);
     group.add(dash);
   }
 
-  // Timber deck carrying the road over the ballast and between the rails.
-  const deck = new THREE.Mesh(
-    new THREE.BoxGeometry(7.2, RAIL_TOP_Y - BALLAST_HEIGHT + 0.06, ROAD_HALF_WIDTH * 2),
-    materials.deck
-  );
-  deck.position.y = BALLAST_HEIGHT + (RAIL_TOP_Y - BALLAST_HEIGHT) / 2;
-  deck.receiveShadow = true;
-  group.add(deck);
+  group.add(createDeck(0));
+  if (branchX != null) {
+    group.add(createDeck(branchX));
+    group.add(createCrossbuck(branchX));
+  }
+
+  return group;
+}
+
+// A static warning sign at an open (gateless) crossing - two boards forming
+// an X, facing along the road so an approaching driver (or player) sees it
+// face-on, the same way a real crossbuck stands in for the barriers a
+// protected crossing has instead.
+function createCrossbuck(x) {
+  const group = new THREE.Group();
+  const z = ROAD_HALF_WIDTH + 0.6;
+
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.4, 8), materials.post);
+  post.position.set(x, 1.2, z);
+  post.castShadow = true;
+  group.add(post);
+
+  for (const angle of [Math.PI / 4, -Math.PI / 4]) {
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 1.3), materials.boomWhite);
+    board.position.set(x, 2.15, z);
+    board.rotation.x = angle;
+    board.castShadow = true;
+    group.add(board);
+  }
 
   return group;
 }
@@ -126,7 +177,11 @@ function createBarrier(side, lamps) {
 }
 
 export class Crossing {
-  constructor(z) {
+  // branchX: if this crossing's road is adjacent to the branch line, the
+  // branch's own track X at this Z - extends the road out to a second,
+  // gateless deck there. Omitted for every crossing that is not near the
+  // branch.
+  constructor(z, branchX) {
     this.z = z;
     this.group = new THREE.Group();
     this.group.name = `crossing:${z}`;
@@ -135,7 +190,7 @@ export class Crossing {
     this.lamps = [];
     this.barriers = [];
 
-    this.group.add(createRoad());
+    this.group.add(createRoad(branchX));
 
     for (const side of [-1, 1]) {
       const barrier = createBarrier(side, this.lamps);

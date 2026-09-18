@@ -514,6 +514,27 @@ Browsers refuse to start an `AudioContext` without a user gesture, so
 anywhere else leaves the context `suspended` and the game silent. Bell volume
 falls off with the player's distance from the crossing.
 
+### The two crossings that reach the branch line
+
+Two of the seven road crossings sit adjacent to a straight run of the branch
+line - `-980` (squarely between Marsden Cross Branch and Kingsford Branch)
+and `-1540` (squarely between Fenwick Bridge and Redgate, past the curve).
+Rather than build a second, disconnected crossing out there, `createRoad()`
+takes an optional `branchX` and extends the *same* road straight out to it,
+ending in a second timber deck over the branch's own rails
+(`world.js` passes `BRANCH_STATIONS[0].x` / `BRANCH_STATIONS[2].x` for these
+two Z values - the branch's own track X at each, not a hand-picked number
+that could drift out of sync with the route). The other five crossings pass
+no `branchX` and are completely unchanged.
+
+That second deck is deliberately gateless - a crossbuck (`createCrossbuck()`,
+two boards forming an X on a post), not a scaled-down copy of the main
+line's booms and lamps. Wiring real barriers to it would mean teaching
+`Crossing` to watch `BranchTrain` the way it already watches `Train`, for a
+line that runs a single railcar shuttling back and forth rather than the
+timetabled service the protected crossings are built around - an "open"
+crossing was the deliberate simplification here, not an oversight.
+
 ## The visible body
 
 Hands and boots only, no connecting limbs. The two halves live in **different

@@ -154,8 +154,20 @@ export function buildWorld() {
 
   // Level crossings out on the line between the two stations.
   // Roughly midway between consecutive stops.
+  //
+  // Two of these sit adjacent to a straight run of the branch line: -980 is
+  // squarely between Marsden Cross Branch and Kingsford Branch (both at
+  // BRANCH_STATIONS[0].x), and -1540 is squarely between Fenwick Bridge and
+  // Redgate (both at BRANCH_STATIONS[2].x, the branch's X once it hands back
+  // onto a straight past the curve). Both get their road extended straight
+  // out to the branch, ending in a second, gateless "open" crossing there -
+  // see createRoad()'s branchX parameter in crossing.js.
+  const branchXByZ = {
+    [-980]: BRANCH_STATIONS[0].x,
+    [-1540]: BRANCH_STATIONS[2].x,
+  };
   const crossings = [-140, -420, -700, -980, -1260, -1540, -1820].map(
-    (z) => new Crossing(z)
+    (z) => new Crossing(z, branchXByZ[z])
   );
 
   for (const crossing of crossings) {
