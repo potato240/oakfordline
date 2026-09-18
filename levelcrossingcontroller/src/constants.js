@@ -44,16 +44,17 @@ export const WARNING_LEAD_TIME = 5.5;
 // Difficulty ramps from *_START down to *_MIN over RAMP_SECONDS of play,
 // then holds at the minimum - trains and cars both get more frequent.
 //
-// TRAIN_INTERVAL_MIN has to stay comfortably above WARNING_LEAD_TIME:
-// verified by a 600s soak test (auto-toggling the barrier on/off with
-// warningActive) that at the old value of 3.2s, back-to-back warnings kept
-// the barrier down almost permanently once the ramp finished, and traffic
-// backed up to 500+ simultaneous cars - not a fun late game, and a real
-// framerate risk since cars are not instanced. At 5s there is reliably a
-// gap most cycles for the barrier to actually reopen.
+// TRAIN_INTERVAL_MIN has to stay comfortably above WARNING_LEAD_TIME (5.5s):
+// a 600s soak test (auto-toggling the barrier on/off with warningActive)
+// showed that at 3.2s, back-to-back warnings kept the barrier down almost
+// permanently once the ramp finished, backing traffic up to 500+
+// simultaneous cars - not a fun late game, and a real framerate risk since
+// cars are not instanced (see MAX_CARS below, added as a hard backstop for
+// exactly this). Raised further, to 8s (from an original fix of 5s), simply
+// because trains that frequent even with a working barrier felt relentless.
 export const RAMP_SECONDS = 100;
-export const TRAIN_INTERVAL_START = 8;
-export const TRAIN_INTERVAL_MIN = 5;
+export const TRAIN_INTERVAL_START = 13;
+export const TRAIN_INTERVAL_MIN = 8;
 export const CAR_INTERVAL_START = 3.2;
 export const CAR_INTERVAL_MIN = 1.6;
 
