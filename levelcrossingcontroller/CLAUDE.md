@@ -350,8 +350,8 @@ Light styles
 stacked), and flash behaviour (alternating/in-phase) - **stylised,
 simplified homages, not accurate reproductions of any real country's actual
 signalling standard, except `uk` and `america` (deliberate exceptions, see
-below) and `france` (one confirmed real detail, the rest a reasonable
-guess)**. `lightStyle: 'none'` suppresses `playWarningDing()` entirely, not
+below) and `france` (two confirmed real details, see below)**.
+`lightStyle: 'none'` suppresses `playWarningDing()` entirely, not
 just the lamp mesh - it represents no warning *system*, audio included, not
 merely invisible lamps that still ring a bell.
 
@@ -406,6 +406,12 @@ that no longer exists. Verified directly: the crossing now has exactly one
 lamp per approach (two total, one per post, each independently flashing in
 sync since both are phase 0), and it genuinely toggles between lit and dark
 over time rather than always-on or one of a pair.
+
+Also sized up: `buildRoundLamp()` gained a `radius` option (`0.16` default,
+matching its previous hard-coded size everywhere else) so `france` could use
+a bigger one (`0.26`) without touching any other style. Being the crossing's
+*only* light rather than one of a pair made it read as undersized at the
+default size - a single lamp needs to carry the whole signal on its own.
 
 **Track count widens the danger corridor, not the train spawn rate.**
 `TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on

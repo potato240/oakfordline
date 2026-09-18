@@ -34,9 +34,9 @@ function buildPost(postX, stopZ) {
 }
 
 function buildRoundLamp(x, y, z, phase, lamps, options = {}) {
-  const { onColor = 0xff5544, offColor = 0x5c1512, emissive = 0xff2a1a } = options;
+  const { onColor = 0xff5544, offColor = 0x5c1512, emissive = 0xff2a1a, radius = 0.16 } = options;
   const lamp = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.16, 0.16, 0.09, 12),
+    new THREE.CylinderGeometry(radius, radius, radius * 0.56, 12),
     unlitLampMaterial(offColor, emissive)
   );
   lamp.rotation.z = Math.PI / 2;
@@ -106,9 +106,12 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     // the US crossbuck, and a real French crossing signal is a single
     // flashing red light - not an alternating pair like every other lit
     // style here. One centred lamp, phase 0, flashing on the normal
-    // FLASH_INTERVAL rhythm rather than alternating with a partner.
+    // FLASH_INTERVAL rhythm rather than alternating with a partner. Made
+    // noticeably bigger than the paired lamps every other style uses -
+    // it is the crossing's *only* light, so it reads as the signal on its
+    // own rather than looking like a lamp missing its other half.
     parent.add(buildCrossbuck(postX, stopZ, materials.boomRed));
-    parent.add(buildRoundLamp(postX, 1.55, stopZ, 0, lamps));
+    parent.add(buildRoundLamp(postX, 1.55, stopZ, 0, lamps, { radius: 0.26 }));
     return;
   }
 
