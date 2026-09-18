@@ -416,10 +416,21 @@ default size - a single lamp needs to carry the whole signal on its own.
 **`wigwag` is the odd one out - not a country, the classic mechanical
 American "wig-wag" signal, and the only light style whose lamp actually
 *moves*.** Every other style only ever changes a material's colour and
-emissive intensity; a wig-wag's single red lens is mounted on an arm that
-physically swings side to side like a pendulum, continuously lit the whole
-time it is active - the on/off sensation for an approaching driver comes
-entirely from the motion, not from the lamp itself flashing. `buildWigWagUnit()`
+emissive intensity; a wig-wag's single red lens hangs from a vertical arm
+mounted at the top of the post and physically swings side to side like a
+pendulum, continuously lit the whole time it is active - the on/off
+sensation for an approaching driver comes entirely from the motion, not from
+the lamp itself flashing. **This went through two corrections**: the arm
+first stuck out horizontally from partway down the post (wrong on both
+counts - "make it on the top" moved the mount to `y = 2.4`, the post's own
+height, but the arm still extended sideways); "have wigwag mounted
+vertically on top of post" then corrected the arm itself to hang straight
+down (`BoxGeometry(0.05, armLength, 0.05)`, offset `-armLength / 2` in `y`,
+lamp at `-armLength`) rather than sticking out along X, matching how a real
+wig-wag's disc actually dangles below its mast and swings in an arc, not a
+boom projecting out to one side. The lamp's cylinder is also rotated onto
+`Z` (`rotation.x = Math.PI / 2`) so its flat face points down the road at an
+approaching driver rather than along the track. `buildWigWagUnit()`
 (`protection.js`) builds a pivot with the arm and lens as its children and
 pushes a lamp descriptor carrying `swingPivot: pivot` alongside the usual
 `phase`/`onColor`/`offColor` - `phase: 'wigwag'` gets its own branches in
@@ -447,8 +458,15 @@ barrier snaps the angle back to exactly `0` rather than leaving it wherever
 the swing had reached.
 
 The pivot mounts at `y = 2.4`, the exact top of the post
-(`buildPost()`'s own height), not partway down it - a real wig-wag's
-disc/lamp pivots from the very top of its mast.
+(`buildPost()`'s own height), and the arm hangs straight down from there
+rather than sticking out to the side - a real wig-wag's disc/lamp pivots
+from the very top of its mast and swings as a pendulum below it. Verified
+directly: `swingPivot.position.y` is `2.4`, the arm's local position is
+`(0, -armLength / 2, 0)` and the lamp's is `(0, -armLength, 0)` (both zero
+in `x`/`z`, confirming nothing sticks out horizontally any more), and
+`rotation.z` continues to oscillate smoothly between `±0.628` rad (36°) over
+the same `WIGWAG_SWING_PERIOD` as before - only the arm's own orientation
+changed, not the swing mechanics driving it.
 
 **Track count widens the danger corridor, not the train spawn rate.**
 `TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on

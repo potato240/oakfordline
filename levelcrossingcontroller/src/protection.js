@@ -64,22 +64,25 @@ function buildSquareLamp(x, y, z, phase, lamps) {
 function buildWigWagUnit(postX, stopZ, lamps) {
   const armLength = 0.85;
 
-  // Mounted right at the top of the post - a real wig-wag's disc/lamp
-  // pivots from up there, not partway down it.
+  // Mounted right at the top of the post, hanging straight down - a real
+  // wig-wag's disc dangles from the mast top on a vertical arm and swings
+  // side to side like a pendulum, it does not stick out horizontally.
   const pivot = new THREE.Group();
   pivot.position.set(postX, 2.4, stopZ);
 
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(armLength, 0.05, 0.05), materials.rail);
-  arm.position.x = armLength / 2;
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.05, armLength, 0.05), materials.rail);
+  arm.position.y = -armLength / 2;
   arm.castShadow = true;
   pivot.add(arm);
 
+  // Cylinder axis rotated onto Z so the disc's flat face points down the
+  // road, toward an approaching driver, rather than along the track.
   const lampMesh = new THREE.Mesh(
     new THREE.CylinderGeometry(0.22, 0.22, 0.12, 14),
     unlitLampMaterial()
   );
-  lampMesh.rotation.z = Math.PI / 2;
-  lampMesh.position.x = armLength;
+  lampMesh.rotation.x = Math.PI / 2;
+  lampMesh.position.y = -armLength;
   lampMesh.castShadow = true;
   pivot.add(lampMesh);
 
