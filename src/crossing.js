@@ -17,6 +17,12 @@ const WARN_DISTANCE = 150;
 const CLEAR_DISTANCE = 34;
 
 const BARRIER_SECONDS = 3.2; // time for a boom to travel up or down
+// Real crossings sound and light up before the barriers actually move - the
+// booms only start lowering this long after the lights/bell first come on.
+// At the train's own top speed (18 m/s, train.js) the booms are fully down
+// by ~7.2s (4s delay + 3.2s travel) into an 8.3s approach from WARN_DISTANCE,
+// so there is still a margin before the train arrives even at full speed.
+const LIGHTS_TO_BOOM_DELAY = 4;
 const BELL_INTERVAL = 0.62;
 const FLASH_INTERVAL = 0.55;
 const AUDIBLE_RANGE = 110;
@@ -200,6 +206,7 @@ export class Crossing {
 
     this.active = false;
     this.lowered = 0; // 0 fully raised, 1 fully down
+    this.warningTimer = 0; // seconds since the lights/bell came on this cycle
     this.bellTimer = 0;
     this.flashTimer = 0;
     this.flashState = 0;
@@ -272,8 +279,16 @@ export class Crossing {
       (onThisLeg && approaching && distance < WARN_DISTANCE) ||
       distance < CLEAR_DISTANCE;
 
-    // Booms follow the warning state, with a lag so the bell leads them.
-    const target = this.active ? 1 : 0;
+    // The lights and bell start the instant a warning begins; the booms wait
+    // LIGHTS_TO_BOOM_DELAY seconds of that before they start lowering, so
+    // there is a clear lights-only interval first, the way a real crossing
+    // sequences it. warningTimer resets the moment the warning ends, so the
+    // next one always gets the full delay again rather than picking up where
+    // a previous, unrelated warning left off.
+    this.warningTimer = this.active ? this.warningTimer + delta : 0;
+    const boomsShouldLower = this.active && this.warningTimer >= LIGHTS_TO_BOOM_DELAY;
+
+    const target = boomsShouldLower ? 1 : 0;
     const step = delta / BARRIER_SECONDS;
     if (this.lowered < target) this.lowered = Math.min(target, this.lowered + step);
     else if (this.lowered > target) this.lowered = Math.max(target, this.lowered - step);

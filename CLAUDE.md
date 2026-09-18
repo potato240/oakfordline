@@ -491,6 +491,16 @@ on the current leg && approaching && distance < 150m  ->  warn
 distance < 34m                                        ->  stay down until clear
 ```
 
+**Lights and bell come on first; the booms wait.** `LIGHTS_TO_BOOM_DELAY = 4`
+seconds - `this.warningTimer` counts up from 0 the instant a warning starts
+(reset to 0 the instant it ends, so a later, unrelated warning always gets
+the full delay again) and the booms only start lowering once it passes 4;
+the lamps and bell start immediately regardless, at `this.active` alone.
+Verified against the train's own top speed (18 m/s, `train.js`): from
+`WARN_DISTANCE`, the train takes ~8.3s to reach the crossing, and the booms
+- 4s delay plus their own 3.2s travel - are fully down at ~7.2s, so there is
+still a margin even at full speed.
+
 **"On the current leg" matters.** A crossing must lie between the train and the
 station it is running to. Without that test, a train braking into a station
 brings the crossing *beyond* that station inside the 150m warning range and
