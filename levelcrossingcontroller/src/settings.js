@@ -19,6 +19,8 @@ export const BARRIER_TYPES = [
 // the real thing more deliberately (see protection.js). 'france' sits in
 // between: the red crossbuck is a genuine distinguishing feature, the rest
 // is a reasonable guess rather than a verified sequence like 'uk'/'america'.
+// 'wigwag' is the odd one out entirely - not a country, the classic
+// mechanical American "wig-wag" signal, whose lamp physically swings.
 export const LIGHT_STYLES = [
   { value: 'default', label: 'Default' },
   { value: 'uk', label: 'UK' },
@@ -26,6 +28,7 @@ export const LIGHT_STYLES = [
   { value: 'france', label: 'France' },
   { value: 'sweden', label: 'Sweden' },
   { value: 'netherlands', label: 'The Netherlands' },
+  { value: 'wigwag', label: 'Wig-Wag' },
   { value: 'none', label: 'None' },
 ];
 

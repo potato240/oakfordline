@@ -62,6 +62,13 @@ export const BARRIER_CLOSE_DELAY = 2;
 // Game.updateBarrier()). Every other light style flashes red immediately.
 export const UK_AMBER_SECONDS = 3;
 
+// lightStyle: 'wigwag' only - how fast and how far the lamp's arm swings
+// while active (Game.updateBarrier() drives `swingPivot.rotation.z` from
+// these). PERIOD is seconds for one full back-and-forth cycle; AMPLITUDE is
+// how far each way, in radians.
+export const WIGWAG_SWING_PERIOD = 0.9;
+export const WIGWAG_SWING_AMPLITUDE = Math.PI / 5; // ~36 degrees each way
+
 // How long before a train reaches the danger zone the warning (lights +
 // bell) starts - has to comfortably exceed BARRIER_SECONDS or a perfectly
 // timed player still could not get the barrier down in time.

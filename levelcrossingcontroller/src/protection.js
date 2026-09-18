@@ -52,6 +52,42 @@ function buildSquareLamp(x, y, z, phase, lamps) {
   return lamp;
 }
 
+// The classic mechanical American "wig-wag" signal, mostly retired now but
+// visually distinct from every other style here in a way none of them are:
+// a single red lens on an arm that physically pivots side to side (a
+// pendulum, not two lamps flashing in place) while active. The lens itself
+// stays continuously lit - the on/off sensation for an approaching driver
+// comes entirely from the motion, not from the lamp switching on and off -
+// so `phase: 'wigwag'` gets its own branch in Game.setLamps() (lit purely by
+// `on`, never by `flashState`), and `swingPivot` is what Game.updateBarrier()
+// actually rotates each frame; nothing else here has a lamp that moves.
+function buildWigWagUnit(postX, stopZ, lamps) {
+  const armLength = 0.85;
+
+  // Mounted right at the top of the post - a real wig-wag's disc/lamp
+  // pivots from up there, not partway down it.
+  const pivot = new THREE.Group();
+  pivot.position.set(postX, 2.4, stopZ);
+
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(armLength, 0.05, 0.05), materials.rail);
+  arm.position.x = armLength / 2;
+  arm.castShadow = true;
+  pivot.add(arm);
+
+  const lampMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.22, 0.12, 14),
+    unlitLampMaterial()
+  );
+  lampMesh.rotation.z = Math.PI / 2;
+  lampMesh.position.x = armLength;
+  lampMesh.castShadow = true;
+  pivot.add(lampMesh);
+
+  lamps.push({ mesh: lampMesh, phase: 'wigwag', onColor: 0xff5544, offColor: 0x5c1512, swingPivot: pivot });
+
+  return pivot;
+}
+
 function buildCrossbuck(postX, stopZ, material = materials.boomWhite) {
   const group = new THREE.Group();
   for (const angle of [Math.PI / 4, -Math.PI / 4]) {
@@ -112,6 +148,11 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     // own rather than looking like a lamp missing its other half.
     parent.add(buildCrossbuck(postX, stopZ, materials.boomRed));
     parent.add(buildRoundLamp(postX, 1.55, stopZ, 0, lamps, { radius: 0.26 }));
+    return;
+  }
+
+  if (style === 'wigwag') {
+    parent.add(buildWigWagUnit(postX, stopZ, lamps));
     return;
   }
 

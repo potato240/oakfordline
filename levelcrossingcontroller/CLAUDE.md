@@ -46,7 +46,7 @@ A complete, playable MVP, now with customisation:
 - **Customisation**, chosen on the start screen and persisted to
   `localStorage`: barrier style (full boom / half barrier / double barrier /
   swing gate / trolley gate / none), light style (default / UK / America /
-  France / Sweden / the Netherlands / none), track count (1-4), and
+  France / Sweden / the Netherlands / Wig-Wag / none), track count (1-4), and
   surroundings (default / city / town / farm / village / rural). See
   "Customisation" below - a settings
   *change* only takes effect on a fresh `Game`, since the scene it builds is
@@ -412,6 +412,43 @@ matching its previous hard-coded size everywhere else) so `france` could use
 a bigger one (`0.26`) without touching any other style. Being the crossing's
 *only* light rather than one of a pair made it read as undersized at the
 default size - a single lamp needs to carry the whole signal on its own.
+
+**`wigwag` is the odd one out - not a country, the classic mechanical
+American "wig-wag" signal, and the only light style whose lamp actually
+*moves*.** Every other style only ever changes a material's colour and
+emissive intensity; a wig-wag's single red lens is mounted on an arm that
+physically swings side to side like a pendulum, continuously lit the whole
+time it is active - the on/off sensation for an approaching driver comes
+entirely from the motion, not from the lamp itself flashing. `buildWigWagUnit()`
+(`protection.js`) builds a pivot with the arm and lens as its children and
+pushes a lamp descriptor carrying `swingPivot: pivot` alongside the usual
+`phase`/`onColor`/`offColor` - `phase: 'wigwag'` gets its own branches in
+both places that matter:
+
+- `Game.setLamps()`: `lit = on` unconditionally, never `flashState`-gated,
+  since the lamp itself never turns off while active.
+- `Game.updateBarrier()`: a `wigwagSwingPhase` accumulator advances by
+  `(delta * 2π) / WIGWAG_SWING_PERIOD` while lights are on, and every lamp
+  with a `swingPivot` gets `rotation.z = sin(phase) * WIGWAG_SWING_AMPLITUDE`
+  - snapping back to exactly `0` (not just stopping wherever it happened to
+  be) the instant the lights go off.
+
+This is the first light style that needed the `lamps` array to carry
+anything beyond material state, and the first time `updateBarrier()` reaches
+into a lamp's own transform rather than only its material - both were
+deliberately kept generic (`swingPivot` is just `undefined` and skipped for
+every other style, `phase: 'wigwag'` is just another string like `'amber'`)
+rather than wig-wag getting a special path bolted on elsewhere in `Game`.
+Verified with a scripted run: the arm's `rotation.z` oscillates through a
+repeating cycle (identical values recur every `WIGWAG_SWING_PERIOD`, 0.9s)
+while active, the lamp is never caught unlit during that whole window
+(confirming it is genuinely continuous, not flashing), and raising the
+barrier snaps the angle back to exactly `0` rather than leaving it wherever
+the swing had reached.
+
+The pivot mounts at `y = 2.4`, the exact top of the post
+(`buildPost()`'s own height), not partway down it - a real wig-wag's
+disc/lamp pivots from the very top of its mast.
 
 **Track count widens the danger corridor, not the train spawn rate.**
 `TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on

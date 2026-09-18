@@ -20,6 +20,8 @@ import {
   BARRIER_CLOSE_DELAY,
   FLASH_INTERVAL,
   UK_AMBER_SECONDS,
+  WIGWAG_SWING_PERIOD,
+  WIGWAG_SWING_AMPLITUDE,
   WARNING_LEAD_TIME,
   RAMP_SECONDS,
   TRAIN_INTERVAL_MIN,
@@ -76,6 +78,7 @@ export class Game {
     this.closeDelayTimer = 0;
     this.ukAmberActive = false; // lightStyle 'uk' only - see updateBarrier()
     this.ukAmberTimer = 0;
+    this.wigwagSwingPhase = 0; // lightStyle 'wigwag' only - see updateBarrier()
 
     this.trainTimer = 3;
     this.carTimer = 1.5;
@@ -227,17 +230,36 @@ export class Game {
     }
     this.wasLightsOn = lightsOn;
 
+    // 'wigwag' only: the lamp's arm physically swings while active - a
+    // continuous oscillation, not tied to flashState/ukAmberActive at all,
+    // since the swinging motion itself *is* the signal here, the way a
+    // flashing lamp is everywhere else. Snaps back to rest (angle 0) the
+    // instant the lights go off, rather than drifting to a stop.
+    this.wigwagSwingPhase += lightsOn ? (delta * 2 * Math.PI) / WIGWAG_SWING_PERIOD : 0;
+    for (const lamp of this.lamps) {
+      if (!lamp.swingPivot) continue;
+      lamp.swingPivot.rotation.z = lightsOn
+        ? Math.sin(this.wigwagSwingPhase) * WIGWAG_SWING_AMPLITUDE
+        : 0;
+    }
+
     this.setLamps(lightsOn);
   }
 
   setLamps(on) {
     for (const lamp of this.lamps) {
-      // The amber lamp (lightStyle 'uk' only) is steady during its own
-      // phase and off otherwise - it never joins the reds' alternation.
-      const lit =
-        lamp.phase === 'amber'
-          ? on && this.ukAmberActive
-          : on && !this.ukAmberActive && this.flashState === lamp.phase;
+      let lit;
+      if (lamp.phase === 'amber') {
+        // The amber lamp (lightStyle 'uk' only) is steady during its own
+        // phase and off otherwise - it never joins the reds' alternation.
+        lit = on && this.ukAmberActive;
+      } else if (lamp.phase === 'wigwag') {
+        // Continuously lit while active - the swinging arm (above) is what
+        // reads as "on/off" to a driver, not the lamp itself flashing.
+        lit = on;
+      } else {
+        lit = on && !this.ukAmberActive && this.flashState === lamp.phase;
+      }
       lamp.mesh.material.emissiveIntensity = lit ? 2.2 : 0;
       lamp.mesh.material.color.setHex(lit ? lamp.onColor ?? 0xff5544 : lamp.offColor ?? 0x5c1512);
     }
