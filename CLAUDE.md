@@ -7,6 +7,10 @@ leaves.
 
 The name is always written **Oakford** as one word. Never "Oak Ford".
 
+This repo also hosts a second, unrelated app at `levelcrossingcontroller/` -
+see its own section near the end of this file before touching it. It shares
+nothing with Oakford Line except this checkout's `node_modules` and build.
+
 ## Current state
 
 Early scaffold. What exists today:
@@ -651,3 +655,53 @@ Symptom to recognise: if the live site renders as unstyled serif text with a
 console error `Failed to resolve module specifier "three"`, the server is
 handing out raw source instead of the build — i.e. it is serving the repo root,
 not `dist/`.
+
+## levelcrossingcontroller - a second, unrelated app in this same repo
+
+`levelcrossingcontroller/` is a completely separate game - **not** part of
+Oakford Line, sharing nothing with it beyond this repo checkout, its
+`node_modules`, and the build pipeline. It exists here purely so it can reuse
+the three.js/Vite install already sitting in this folder instead of a fresh
+`npm install` in a project of its own; there is no other reason for it to
+live inside this repo, and no reason to reach for its code when working on
+Oakford Line or vice versa.
+
+It is a second Vite **multi-page** entry, not a subfolder Oakford Line's own
+`index.html` happens to link to:
+
+```js
+// vite.config.js
+build: {
+  rollupOptions: {
+    input: {
+      main: here('./index.html'),
+      levelcrossingcontroller: here('./levelcrossingcontroller/index.html'),
+    },
+  },
+},
+```
+
+Vite's dev server finds any HTML file under the project root on its own -
+`npm run dev` already serves `levelcrossingcontroller/index.html` at
+`/levelcrossingcontroller/` with zero config. The `rollupOptions.input` entry
+above only matters for `npm run build`: without naming it, Rollup only knows
+about the root `index.html` and silently drops the second page from `dist/`
+entirely. nginx needs no changes either - `location /`'s existing
+`try_files $uri $uri/ /index.html` already resolves `/levelcrossingcontroller/`
+to `dist/levelcrossingcontroller/index.html` the same way it would resolve any
+other real subfolder with an index file in it. Both pages share one
+`three.module-*.js` chunk in the production build, confirmed by inspecting
+`dist/assets/` after a build - Rollup dedupes the common dependency across
+entry points automatically, so there is exactly one copy of three.js shipped
+either way.
+
+**Deployed, this becomes a path under Oakford Line's own domain**
+(`oakfordline.stevens-hall.com/levelcrossingcontroller/`), not a separate
+subdomain - it is the same build, served by the same nginx, behind the same
+Coolify app. An actual subdomain needs its own DNS record and (typically) its
+own Coolify application regardless of repo layout, which is outside what
+changing files in this repo can do on its own.
+
+`levelcrossingcontroller/src/main.js` is currently a blank-slate three.js
+scene (renderer, camera, one placeholder mesh, a resize handler, an animation
+loop) - a working starting point, not a game yet.
