@@ -19,7 +19,9 @@ A complete, playable MVP:
 - Fixed top-down-ish camera over a single crossing. Track runs along X
   (trains), road runs along Z (cars), they cross at the origin.
 - Trains spawn off one edge, cross, and despawn off the other - random
-  direction, length and speed each time.
+  direction, length and speed each time, `TRAIN_INTERVAL_MIN`-`_MAX` (30-120s)
+  apart, picked uniformly at random each time with no ramp - deliberately
+  unpredictable rather than a rhythm the player can just learn.
 - Cars spawn on the road in two lanes (one per direction), queue behind each
   other with a fixed minimum gap, and stop at the barrier when it is down.
 - One shared barrier (two gate arms, one per approach) the player raises and
@@ -30,8 +32,8 @@ A complete, playable MVP:
   `WARNING_LEAD_TIME` seconds before any train would reach the crossing -
   the player's cue to act, not an autopilot; the barrier does not move on
   its own.
-- Difficulty ramps up over `RAMP_SECONDS`: trains and cars both get more
-  frequent, down to a floor.
+- Cars ramp up over `RAMP_SECONDS`, getting more frequent down to a floor
+  (`CAR_INTERVAL_MIN`). Trains do not ramp - see above.
 - Score: +1 per car that clears the crossing, +2 per train. Collision ends
   the run with a game-over screen and a restart.
 

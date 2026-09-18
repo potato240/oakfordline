@@ -17,8 +17,8 @@ import {
   FLASH_INTERVAL,
   WARNING_LEAD_TIME,
   RAMP_SECONDS,
-  TRAIN_INTERVAL_START,
   TRAIN_INTERVAL_MIN,
+  TRAIN_INTERVAL_MAX,
   CAR_INTERVAL_START,
   CAR_INTERVAL_MIN,
   MAX_CARS,
@@ -65,11 +65,6 @@ export class Game {
   toggleBarrier() {
     if (this.gameOver) return;
     this.barrierTarget = this.barrierTarget > 0 ? 0 : 1;
-  }
-
-  currentTrainInterval() {
-    const t = Math.min(1, this.elapsed / RAMP_SECONDS);
-    return THREE.MathUtils.lerp(TRAIN_INTERVAL_START, TRAIN_INTERVAL_MIN, t);
   }
 
   currentCarInterval() {
@@ -218,7 +213,7 @@ export class Game {
     this.trainTimer -= delta;
     if (this.trainTimer <= 0) {
       this.spawnTrain();
-      this.trainTimer = this.currentTrainInterval() * (0.75 + Math.random() * 0.5);
+      this.trainTimer = THREE.MathUtils.lerp(TRAIN_INTERVAL_MIN, TRAIN_INTERVAL_MAX, Math.random());
     }
 
     this.carTimer -= delta;

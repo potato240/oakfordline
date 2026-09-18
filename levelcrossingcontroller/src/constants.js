@@ -41,22 +41,23 @@ export const FLASH_INTERVAL = 0.5; // lamp alternation while the barrier is acti
 // timed player still could not get the barrier down in time.
 export const WARNING_LEAD_TIME = 5.5;
 
-// Difficulty ramps from *_START down to *_MIN over RAMP_SECONDS of play,
-// then holds at the minimum - trains and cars both get more frequent.
-//
-// TRAIN_INTERVAL_MIN has to stay comfortably above WARNING_LEAD_TIME (5.5s):
-// a 600s soak test (auto-toggling the barrier on/off with warningActive)
-// showed that at 3.2s, back-to-back warnings kept the barrier down almost
-// permanently once the ramp finished, backing traffic up to 500+
-// simultaneous cars - not a fun late game, and a real framerate risk since
-// cars are not instanced (see MAX_CARS below, added as a hard backstop for
-// exactly this). Raised further, to 8s (from an original fix of 5s), simply
-// because trains that frequent even with a working barrier felt relentless.
+// Cars still ramp from *_START down to *_MIN over RAMP_SECONDS of play, then
+// hold at the minimum, getting more frequent as a run goes on.
 export const RAMP_SECONDS = 100;
-export const TRAIN_INTERVAL_START = 13;
-export const TRAIN_INTERVAL_MIN = 8;
 export const CAR_INTERVAL_START = 3.2;
 export const CAR_INTERVAL_MIN = 1.6;
+
+// Trains do NOT ramp - every gap is picked uniformly at random between these
+// two, the whole run through (Game.spawnTrain() sets the next trainTimer
+// straight from THREE.MathUtils.lerp(TRAIN_INTERVAL_MIN, TRAIN_INTERVAL_MAX,
+// Math.random()), no extra jitter multiplier on top - the range itself is
+// the variation). TRAIN_INTERVAL_MIN only has to clear WARNING_LEAD_TIME
+// (5.5s) comfortably, which 30s does many times over - the old ramp-based
+// tuning existed specifically to avoid warnings/barriers getting stuck on
+// back-to-back near a much lower floor (see git history), which is not a
+// concern at these intervals.
+export const TRAIN_INTERVAL_MIN = 30;
+export const TRAIN_INTERVAL_MAX = 120;
 
 // A hard ceiling on simultaneous cars, regardless of how the spawn/warning
 // tuning above balances out. A 600s soak test (constant spawning, an
