@@ -326,10 +326,12 @@ pivots about a horizontal (Z) axis (`default`/`half`, differing only in
 (open = parallel to the road, closed = swung across it), and a `trolley`
 gate translates sideways along an overhead rail rather than rotating at all.
 `Game.updateBarrier()` mostly does not need to know which: it just calls
-`protectionUnits[0].apply(this.lowered)` (south/entry) and
-`protectionUnits[1].apply(this.exitLowered)` (north/exit) every frame -
-`exitLowered` mirrors `lowered` exactly for every `barrierType` except
-`frenchdouble` (see below), so this is a no-op distinction everywhere else.
+`unit.apply(this.lowered, this.farLowered)` for each approach every frame -
+every gate's `apply` takes the first (near-arm) fraction, and
+`buildDoubleBarrierGate()`'s alone also takes the second (far-arm) one,
+defaulting it to the near value when not given (see below). `farLowered`
+mirrors `lowered` exactly for every `barrierType` except `frenchdouble`, so
+this is a no-op distinction everywhere else.
 
 **`double` is modelled on a real UK "MCB-OD" crossing, not just given a
 second arm.** A real double-barrier crossing does not use one arm spanning
@@ -351,48 +353,49 @@ with a small overlap in the middle, not two arms on one post.
 
 **`frenchdouble` looks identical to `double` - same
 `buildDoubleBarrierGate()` geometry, same `buildGate()` case - but is the
-one `barrierType` that is not purely visual.** Real French practice at
-some double-barrier crossings closes the two gates in two stages: the entry
-side first, the exit side a short while after, rather than both together -
-giving a vehicle already between the gates a little longer to clear before
-it too comes down. This game's two approaches (`protectionUnits[0]`/`[1]`,
-built as `southUnit`/`northUnit` in `scene.js`) are arbitrarily but
-consistently labelled entry (south) and exit (north) for this purpose, not
-picked per travel direction - south always closes first, north always
-lags, regardless of which lane a given car is in. `Game.updateBarrier()`
-runs the exit gate through the *exact same* state machine the entry gate
-already used for `BARRIER_CLOSE_DELAY` (`waitingToClose`/`closeDelayTimer`
-→ `waitingToCloseExit`/`closeDelayTimerExit`, own `exitLowered` value
-instead of `lowered`), just with `FRENCH_DOUBLE_EXIT_DELAY` (1.5s) added on
-top of its own close-delay wait - so it starts moving `FRENCH_DOUBLE_EXIT_DELAY`
-after the entry gate does, and reaches fully closed that much later too.
-For every other `barrierType`, `exitLowered` is simply assigned `lowered`
-every frame, so nothing about them changes.
+one `barrierType` that is not purely visual.** Real French practice at some
+double-barrier crossings closes each approach's two arms in two stages
+rather than together: the *near* arm - built from the same `postX`/
+`reachDirection` every other gate style's single post uses, which is always
+the side of the road a car actually drives in on at that approach - closes
+first; the *far* (mirrored) arm closes a short while after. This is **not**
+a north-vs-south thing - both approaches' near arms close first and both
+far arms lag, simultaneously - it is specifically about which of a single
+approach's *two posts* closes first. (An earlier version of this had it
+backwards: staggering the whole south approach against the whole north one,
+on the mistaken assumption "entry" and "exit" meant one end of the crossing
+vs the other, rather than one arm of a single double-barrier gate vs its
+mirror - "the side cars drive on closes first, then the other" corrected
+this to the near/far-arm framing.)
 
-This also had to reach into car-stopping, not just the visuals, to stay
-honest: `Game.advanceLane()` used to clamp every lane against the single
-shared `this.lowered`, which would have looked broken for `frenchdouble`
-(a lane's cars stopping in sync with the *entry* gate even though their own
-gate, still up, hadn't moved yet). `advanceLane()` now takes the relevant
-`lowered` value as a parameter rather than reading `this.lowered` directly,
-and `Game.updateCars()` passes `this.lowered` for the northbound lane
-(which runs into the south/entry gate) and `this.exitLowered` for the
-southbound lane (which runs into the north/exit gate) - identical to
-before for every `barrierType` but `frenchdouble`, where the two lanes now
-genuinely stop on their own gate's own schedule. Note this game's cars
-already drive straight through once `committed` (see "Cars: commit or stop,
-never both" above) regardless of `barrierType`, so the real-world safety
-rationale (letting a vehicle already mid-crossing get clear) has no
-separate mechanism to add here - it is already handled the same way for
-every style; `frenchdouble` only changes *when* each side's gate starts
-moving. Verified with a scripted run: with the entry gate's `BARRIER_CLOSE_DELAY`
-(2s) elapsing at ~1.97s and reaching fully closed at ~3.53s, the exit
-gate's own wait (`BARRIER_CLOSE_DELAY + FRENCH_DOUBLE_EXIT_DELAY`, 3.5s)
-elapses at ~3.50s and reaches fully closed at ~5.07s - a consistent
-`FRENCH_DOUBLE_EXIT_DELAY`-sized lag throughout, and a same-settings run
-with `barrierType: 'double'` confirmed `lowered` and `exitLowered` never
-differ at all. The full 70 barrier×light combination regression (including
-`frenchdouble`) is clean.
+`buildDoubleBarrierGate()`'s `apply(lowered, farLowered = lowered)` now
+takes a second, optional fraction for the far arm alone, defaulting to the
+near value so a plain single-argument call (every other `barrierType`'s
+gates only ever take one) still moves both arms together exactly as
+before. `Game.updateBarrier()` runs a second state machine for the far arm
+- `waitingToCloseFar`/`closeDelayTimerFar`, its own `farLowered` value -
+that is an exact copy of the near arm's `BARRIER_CLOSE_DELAY` logic, just
+with `FRENCH_DOUBLE_EXIT_DELAY` (1.5s) added on top of its own close-delay
+wait, active only when `barrierType === 'frenchdouble'`; every other
+`barrierType` simply assigns `farLowered = lowered` every frame, so nothing
+about them changes. This did **not** need to reach into car-stopping at
+all: `Game.advanceLane()` still checks only the near arm's `this.lowered`,
+because a car only ever reaches a crossing's *far* arm after it is already
+`committed` (it overlaps the combined danger zone well before reaching
+either approach's own stop line - see "Cars: commit or stop, never both"
+above) - committed cars ignore every gate regardless of `barrierType`
+already, so the far arm's own timing is honestly cosmetic, matching how a
+real double-barrier's second arm mostly exists for redundancy rather than
+covering a specific lane. Verified with a scripted run: the near arm's
+`BARRIER_CLOSE_DELAY` (2s) elapses at ~1.97s and it reaches fully closed at
+~3.53s; the far arm's own wait (`BARRIER_CLOSE_DELAY + FRENCH_DOUBLE_EXIT_DELAY`,
+3.5s) elapses at ~3.50s and it reaches fully closed at ~5.07s - a
+consistent `FRENCH_DOUBLE_EXIT_DELAY`-sized lag throughout - and a
+same-settings run with `barrierType: 'double'` confirmed `lowered` and
+`farLowered` never differ at all. Also confirmed visually: mid-sequence,
+the near arm sits most of the way closed (with a queued car already
+stopped at it) while the far arm has barely started to move. The full 70
+barrier×light combination regression (including `frenchdouble`) is clean.
 
 Light styles
 (`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/

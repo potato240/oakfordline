@@ -346,9 +346,13 @@ function buildDoubleBarrierGate(postX, stopZ, reachDirection) {
 
   return {
     group,
-    apply(lowered) {
+    // `farLowered` defaults to `lowered` so a plain single-argument call
+    // (every barrierType except 'frenchdouble' - see Game.updateBarrier())
+    // still moves both arms together, exactly like before this gained a
+    // second arm-specific fraction.
+    apply(lowered, farLowered = lowered) {
       near.apply(lowered);
-      far.apply(lowered);
+      far.apply(farLowered);
     },
   };
 }
@@ -447,8 +451,8 @@ function buildGate(type, postX, stopZ, reachDirection) {
     case 'double':
     case 'frenchdouble':
       // Same MCB-OD-style two-post lattice gate as 'double' - 'frenchdouble'
-      // differs only in *when* each approach's gate starts closing
-      // (Game.updateBarrier()'s exitLowered), not in how it looks.
+      // differs only in *when* the far arm starts closing relative to the
+      // near one (Game.updateBarrier()'s farLowered), not in how it looks.
       return buildDoubleBarrierGate(postX, stopZ, reachDirection);
     case 'swing':
       return buildSwingGate(postX, stopZ, reachDirection);
