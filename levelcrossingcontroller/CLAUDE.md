@@ -292,10 +292,36 @@ gate translates sideways along an overhead rail rather than rotating at all.
 (`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/
 stacked), flash behaviour (alternating/in-phase), and whether a crossbuck or
 banded post accompanies them - **stylised, simplified homages, not accurate
-reproductions of any real country's actual signalling standard.**
+reproductions of any real country's actual signalling standard - except
+`uk`, which is a deliberate exception** (see below).
 `lightStyle: 'none'` suppresses `playWarningDing()` entirely, not just the
 lamp mesh - it represents no warning *system*, audio included, not merely
 invisible lamps that still ring a bell.
+
+**`uk` is modelled on the real sequence, not just given a different look.**
+Real UK level crossing road signals show a single steady amber lamp for a
+few seconds *before* the usual pair of alternately flashing reds ever
+lights - every other style here (and most other countries' crossings) skips
+straight to flashing red the instant the lights come on. `buildLamps()`
+adds a third lamp, tagged `phase: 'amber'` with its own `onColor`/`offColor`
+(`buildRoundLamp()`'s `options` argument, added for exactly this), positioned
+above the usual pair. `Game.updateBarrier()` tracks `ukAmberActive` and
+`ukAmberTimer`: the instant the lights turn on from off
+(`lightsOn && !this.wasLightsOn`) with `lightStyle === 'uk'`, it starts a
+fresh `UK_AMBER_SECONDS` (3s) countdown, holding the reds dark and the amber
+lit steady; once it elapses, `ukAmberActive` clears and the normal
+`flashState`-driven alternation (shared with every other style) takes over.
+`Game.setLamps()` has one extra branch for this: a lamp with `phase ===
+'amber'` is lit purely by `ukAmberActive`, never by `flashState`, so it can
+never accidentally join the reds' alternation. The UK post is also
+deliberately left plain (unlike America's banded one) - a banded post was
+never a real UK feature, the amber-then-red sequence is what actually
+distinguishes it. Verified with a scripted run: amber lights within one
+frame of the barrier starting to lower and stays lit steady for exactly
+`UK_AMBER_SECONDS`, the reds stay dark the entire time, and only then do
+they start alternating (confirmed genuinely alternating, never both lit
+together) - and every other light style is unaffected (`ukAmberActive`
+never becomes `true` unless `lightStyle` is `'uk'`).
 
 **Track count widens the danger corridor, not the train spawn rate.**
 `TRACK_COUNTS` is 1-4; `Game`'s constructor lays `trackZs` out centred on

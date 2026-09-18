@@ -50,6 +50,11 @@ export const TRAIN_MAX_SPEED = 22;
 export const BARRIER_SECONDS = 1.6; // time for a boom to travel fully up/down
 export const FLASH_INTERVAL = 0.5; // lamp alternation while the barrier is active
 
+// Real UK level crossing signals show a steady amber for this long before
+// the red lamps start flashing - lightStyle: 'uk' only (protection.js /
+// Game.updateBarrier()). Every other light style flashes red immediately.
+export const UK_AMBER_SECONDS = 3;
+
 // How long before a train reaches the danger zone the warning (lights +
 // bell) starts - has to comfortably exceed BARRIER_SECONDS or a perfectly
 // timed player still could not get the barrier down in time.

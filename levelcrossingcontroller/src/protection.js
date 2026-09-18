@@ -17,10 +17,12 @@ const materials = {
   rail: new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.6, metalness: 0.4 }),
 };
 
-function unlitLampMaterial() {
+// `onColor` is what Game.setLamps() switches the lamp's own base colour to
+// while lit - defaulting to red, but the UK amber lamp below needs its own.
+function unlitLampMaterial(offColor = 0x5c1512, emissive = 0xff2a1a) {
   return new THREE.MeshStandardMaterial({
-    color: 0x5c1512,
-    emissive: 0xff2a1a,
+    color: offColor,
+    emissive,
     emissiveIntensity: 0,
     roughness: 0.4,
   });
@@ -51,11 +53,15 @@ function buildPost(postX, stopZ, banded) {
   return group;
 }
 
-function buildRoundLamp(x, y, z, phase, lamps) {
-  const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.09, 12), unlitLampMaterial());
+function buildRoundLamp(x, y, z, phase, lamps, options = {}) {
+  const { onColor = 0xff5544, offColor = 0x5c1512, emissive = 0xff2a1a } = options;
+  const lamp = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16, 0.16, 0.09, 12),
+    unlitLampMaterial(offColor, emissive)
+  );
   lamp.rotation.z = Math.PI / 2;
   lamp.position.set(x, y, z);
-  lamps.push({ mesh: lamp, phase });
+  lamps.push({ mesh: lamp, phase, onColor, offColor });
   return lamp;
 }
 
@@ -110,8 +116,29 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     return;
   }
 
-  // 'default' and 'uk' - round lamps, alternating; the banded post (added by
-  // the caller for 'uk') is what tells them apart.
+  if (style === 'uk') {
+    // The genuinely distinguishing UK feature: a single steady amber lamp
+    // above the pair of red ones, which lights *first* (Game.updateBarrier()
+    // drives a UK_AMBER_SECONDS steady phase before the reds ever start
+    // flashing) - the UK is the only one of these styles that warns with
+    // amber before red at all, mirroring its road traffic lights generally,
+    // rather than jumping straight to flashing red like every other style
+    // here (and, in reality, most other countries' crossings).
+    parent.add(
+      buildRoundLamp(postX, 2.55, stopZ, 'amber', lamps, {
+        onColor: 0xffb300,
+        offColor: 0x4a3a12,
+        emissive: 0xffa000,
+      })
+    );
+    for (const offset of [-0.35, 0.35]) {
+      parent.add(buildRoundLamp(postX + offset, 2.1, stopZ, offset > 0 ? 1 : 0, lamps));
+    }
+    return;
+  }
+
+  // 'default' - plain round lamps, alternating, straight to flashing red
+  // with no lead-in phase.
   for (const offset of [-0.35, 0.35]) {
     parent.add(buildRoundLamp(postX + offset, 2.25, stopZ, offset > 0 ? 1 : 0, lamps));
   }
@@ -260,8 +287,10 @@ export function buildProtectionUnit(stopZ, postSide, barrierType, lightStyle, la
   const reachDirection = -postSide;
 
   if (barrierType !== 'none' || lightStyle !== 'none') {
-    const banded = lightStyle === 'uk' || lightStyle === 'america';
-    group.add(buildPost(postX, stopZ, banded));
+    // Real UK signal posts are plain - the amber-before-red sequence is
+    // what actually tells the UK style apart, not a banded post (that
+    // stays an America-only distinguisher).
+    group.add(buildPost(postX, stopZ, lightStyle === 'america'));
   }
 
   buildLamps(lightStyle, postX, stopZ, group, lamps);

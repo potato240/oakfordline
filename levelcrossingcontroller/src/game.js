@@ -18,6 +18,7 @@ import {
   TRAIN_MAX_SPEED,
   BARRIER_SECONDS,
   FLASH_INTERVAL,
+  UK_AMBER_SECONDS,
   WARNING_LEAD_TIME,
   RAMP_SECONDS,
   TRAIN_INTERVAL_MIN,
@@ -69,6 +70,9 @@ export class Game {
     this.flashTimer = 0;
     this.flashState = 0;
     this.warningActive = false;
+    this.wasLightsOn = false;
+    this.ukAmberActive = false; // lightStyle 'uk' only - see updateBarrier()
+    this.ukAmberTimer = 0;
 
     this.trainTimer = 3;
     this.carTimer = 1.5;
@@ -167,21 +171,44 @@ export class Game {
     for (const unit of this.protectionUnits) unit.apply(this.lowered);
 
     const lightsOn = this.lowered > 0.02;
+
+    // The real UK sequence: a steady amber lead-in before the reds ever
+    // start flashing, starting fresh every time the lights come on from
+    // off (not just once per game) - every other light style skips this
+    // entirely and goes straight to flashing red.
+    if (lightsOn && !this.wasLightsOn && this.settings.lightStyle === 'uk') {
+      this.ukAmberActive = true;
+      this.ukAmberTimer = UK_AMBER_SECONDS;
+    }
+    if (!lightsOn) this.ukAmberActive = false;
+
     if (lightsOn) {
-      this.flashTimer += delta;
-      if (this.flashTimer >= FLASH_INTERVAL) {
-        this.flashTimer -= FLASH_INTERVAL;
-        this.flashState = this.flashState === 0 ? 1 : 0;
+      if (this.ukAmberActive) {
+        this.ukAmberTimer -= delta;
+        if (this.ukAmberTimer <= 0) this.ukAmberActive = false;
+      } else {
+        this.flashTimer += delta;
+        if (this.flashTimer >= FLASH_INTERVAL) {
+          this.flashTimer -= FLASH_INTERVAL;
+          this.flashState = this.flashState === 0 ? 1 : 0;
+        }
       }
     }
+    this.wasLightsOn = lightsOn;
+
     this.setLamps(lightsOn);
   }
 
   setLamps(on) {
     for (const lamp of this.lamps) {
-      const lit = on && this.flashState === lamp.phase;
+      // The amber lamp (lightStyle 'uk' only) is steady during its own
+      // phase and off otherwise - it never joins the reds' alternation.
+      const lit =
+        lamp.phase === 'amber'
+          ? on && this.ukAmberActive
+          : on && !this.ukAmberActive && this.flashState === lamp.phase;
       lamp.mesh.material.emissiveIntensity = lit ? 2.2 : 0;
-      lamp.mesh.material.color.setHex(lit ? 0xff5544 : 0x5c1512);
+      lamp.mesh.material.color.setHex(lit ? lamp.onColor ?? 0xff5544 : lamp.offColor ?? 0x5c1512);
     }
   }
 
