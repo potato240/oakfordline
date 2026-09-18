@@ -24,8 +24,9 @@ A complete, playable MVP, now with customisation:
   unpredictable rather than a rhythm the player can just learn. On more than
   one track (see Customisation), each spawn picks one of the tracks at
   random too.
-- Cars spawn on the road in two lanes (one per direction), queue behind each
-  other with a fixed minimum gap, and stop at the barrier when it is down.
+- Cars spawn on the road in two lanes (one per direction, right-hand
+  traffic), queue behind each other with a fixed minimum gap, and stop at
+  the barrier when it is down.
 - A shared barrier (one gate per approach, whichever style is selected) the
   player raises and lowers with Space or the on-screen button. Takes
   `BARRIER_SECONDS` to travel, so it has to be commanded down with enough
@@ -113,6 +114,19 @@ layered on top of it. Verified directly: a train and a car placed on
 zone", do not collide; moved onto the *same* track, they do.
 
 ## Cars: commit or stop, never both
+
+**Which side of the road each direction drives on** is decided once, in
+`Game.spawnCar()`: `laneX = direction > 0 ? -LANE_OFFSET : LANE_OFFSET`. The
+fixed camera looks from +Z toward -Z with world +X as screen-right
+(`camera.lookAt(0, 0, -4)` from a +Z eye position, `scene.js`), so a car
+heading +Z (south, toward the camera) has its own right-hand side toward
+world -X, and one heading -Z (north) has its own right toward world +X -
+right-hand traffic, the same rule real roads use, just derived from this
+scene's specific axis/camera convention rather than assumed. Getting the
+sign backwards here silently produces left-hand traffic instead - there is
+no visual crash to catch it, only two lanes that still work but pass each
+other on the wrong side, so if `LANE_OFFSET`, the camera position, or the
+world's Z convention ever change, re-derive this rather than guessing.
 
 Every frame, `Game.advanceLane()` walks one lane's cars (ordered lead-car
 first) and clamps each one's desired position by, at most, two things:

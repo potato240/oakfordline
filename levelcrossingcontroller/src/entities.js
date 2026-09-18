@@ -84,9 +84,17 @@ export class Train {
 }
 
 // A car travelling along Z in its own lane - `direction` +1 moves toward +Z
-// (spawned south, lane offset +LANE_OFFSET), -1 moves toward -Z (spawned
-// north, lane offset -LANE_OFFSET). Movement is a simple positional clamp
-// each frame rather than force/acceleration - enough for arcade traffic.
+// (spawned south of the crossing, heading north through it), -1 moves
+// toward -Z (spawned north, heading south). `laneX` (Game.spawnCar()) picks
+// right-hand traffic: the fixed camera looks from +Z toward -Z with world
+// +X as screen-right (camera.lookAt(0,0,-4) from (0, y, +z) - see scene.js),
+// so a car facing south (+Z) has its own right-hand side toward world -X,
+// and one facing north (-Z) has its own right toward world +X - the
+// opposite of which world-X side each direction's lane sits on, the same
+// way "which side of a north-south road is the right-hand lane" flips
+// depending on which way you're driving on it. Movement is a simple
+// positional clamp each frame rather than force/acceleration - enough for
+// arcade traffic.
 export class Car {
   constructor(direction, laneX) {
     this.direction = direction;

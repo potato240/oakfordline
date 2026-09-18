@@ -101,7 +101,10 @@ export class Game {
     if (this.cars.length >= MAX_CARS) return; // the road is backed up out of sight - see MAX_CARS
 
     const direction = Math.random() < 0.5 ? 1 : -1;
-    const laneX = direction > 0 ? LANE_OFFSET : -LANE_OFFSET;
+    // Right-hand traffic: a car heading +Z (south, toward the camera) keeps
+    // to the -X side of the road, and one heading -Z (north, away from the
+    // camera) keeps to +X - see the derivation in entities.js's Car comment.
+    const laneX = direction > 0 ? -LANE_OFFSET : LANE_OFFSET;
     const car = new Car(direction, laneX);
     this.cars.push(car);
     this.scene.add(car.group);
