@@ -1,51 +1,101 @@
 import * as THREE from 'three';
 import './style.css';
-
-// Blank-slate starting point for Level Crossing Controller. Reuses this
-// repo's own three.js install (see the note in levelcrossingcontroller's
-// section of CLAUDE.md) rather than a separate project with its own
-// node_modules - there is no gameplay here yet, just a working scene to
-// build on.
+import { Game } from './game.js';
+import { startAudio } from './audio.js';
 
 const canvas = document.getElementById('scene');
+const overlay = document.getElementById('overlay');
+const startButton = document.getElementById('start');
+const hud = document.getElementById('hud');
+const scoreEl = document.getElementById('score');
+const barrierStatusEl = document.getElementById('barrier-status');
+const warningBanner = document.getElementById('warning-banner');
+const barrierButton = document.getElementById('barrier-btn');
+const gameOverEl = document.getElementById('gameover');
+const finalScoreEl = document.getElementById('final-score');
+const restartButton = document.getElementById('restart');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b0e13);
-
-const camera = new THREE.PerspectiveCamera(
-  60,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  100
-);
-camera.position.set(3, 2.5, 5);
-camera.lookAt(0, 0.5, 0);
-
-scene.add(new THREE.HemisphereLight(0xffffff, 0x222222, 1.2));
-const sun = new THREE.DirectionalLight(0xffffff, 1.4);
-sun.position.set(4, 6, 3);
-scene.add(sun);
-
-// A boom-shaped placeholder so the scene reads as "a level crossing thing",
-// not an empty room - swap for real geometry once the game takes shape.
-const boom = new THREE.Mesh(
-  new THREE.BoxGeometry(2, 0.15, 0.15),
-  new THREE.MeshStandardMaterial({ color: 0xc0392b })
-);
-boom.position.y = 0.5;
-scene.add(boom);
+const game = new Game();
+game.camera.aspect = window.innerWidth / window.innerHeight;
+game.camera.updateProjectionMatrix();
 
 window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  game.camera.aspect = window.innerWidth / window.innerHeight;
+  game.camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-renderer.setAnimationLoop((time) => {
-  boom.rotation.z = Math.sin(time / 1000) * 0.3;
-  renderer.render(scene, camera);
+let started = false;
+
+function beginGame() {
+  // Audio can only start from a user gesture, which this is downstream of.
+  startAudio();
+  overlay.classList.add('hidden');
+  hud.classList.add('visible');
+  barrierButton.classList.add('visible');
+  started = true;
+}
+
+startButton.addEventListener('click', beginGame);
+
+function toggleBarrier() {
+  if (!started) return;
+  game.toggleBarrier();
+}
+
+barrierButton.addEventListener('click', toggleBarrier);
+
+function restart() {
+  game.reset();
+  gameOverEl.classList.add('hidden');
+  hud.classList.add('visible');
+  barrierButton.classList.add('visible');
+}
+
+restartButton.addEventListener('click', restart);
+
+document.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') {
+    event.preventDefault();
+    if (game.gameOver) restart();
+    else toggleBarrier();
+  } else if (event.code === 'KeyR' && game.gameOver) {
+    restart();
+  }
+});
+
+if (import.meta.env.DEV) {
+  window.game = game;
+}
+
+const clock = new THREE.Clock();
+let wasGameOver = false;
+
+renderer.setAnimationLoop(() => {
+  const delta = Math.min(clock.getDelta(), 0.1);
+
+  if (started) game.update(delta);
+
+  scoreEl.textContent = `Score: ${game.score}`;
+  barrierStatusEl.textContent = `Barrier: ${game.barrierTarget ? 'DOWN' : 'UP'}`;
+  barrierButton.textContent = game.barrierTarget
+    ? 'Raise Barrier (Space)'
+    : 'Lower Barrier (Space)';
+  warningBanner.classList.toggle('visible', game.warningActive && !game.gameOver);
+
+  if (game.gameOver && !wasGameOver) {
+    finalScoreEl.textContent = `Final score: ${game.score}`;
+    gameOverEl.classList.remove('hidden');
+    hud.classList.remove('visible');
+    barrierButton.classList.remove('visible');
+  }
+  wasGameOver = game.gameOver;
+
+  renderer.render(game.scene, game.camera);
 });

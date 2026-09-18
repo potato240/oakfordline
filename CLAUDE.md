@@ -702,6 +702,7 @@ Coolify app. An actual subdomain needs its own DNS record and (typically) its
 own Coolify application regardless of repo layout, which is outside what
 changing files in this repo can do on its own.
 
-`levelcrossingcontroller/src/main.js` is currently a blank-slate three.js
-scene (renderer, camera, one placeholder mesh, a resize handler, an animation
-loop) - a working starting point, not a game yet.
+`levelcrossingcontroller/` now has its own actual game and its own
+`levelcrossingcontroller/CLAUDE.md` documenting it - this section only
+covers how it sits inside *this* repo/build, not what it does or how it
+works. Read that file, not this one, before touching its code.

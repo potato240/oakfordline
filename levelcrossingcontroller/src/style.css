@@ -20,7 +20,12 @@ body {
   height: 100vh;
 }
 
-#overlay {
+.hidden {
+  display: none !important;
+}
+
+#overlay,
+#gameover {
   position: fixed;
   inset: 0;
   display: flex;
@@ -28,18 +33,142 @@ body {
   align-items: center;
   justify-content: center;
   gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(11, 14, 19, 0.82);
   color: #e8edf4;
   text-align: center;
-  pointer-events: none;
+  z-index: 10;
 }
 
-#overlay h1 {
-  font-size: clamp(2rem, 6vw, 3.5rem);
+#overlay h1,
+#gameover h1 {
+  font-size: clamp(2rem, 6vw, 3.2rem);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
 #overlay p {
+  max-width: 34rem;
+  font-size: 1rem;
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+#overlay .hint {
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+#gameover h1 {
+  color: #ff5544;
+}
+
+#final-score {
+  font-size: 1.1rem;
+  opacity: 0.85;
+}
+
+#start,
+#restart {
+  margin-top: 0.5rem;
+  padding: 0.7rem 1.8rem;
+  font: inherit;
+  font-size: 1rem;
+  color: #0b0e13;
+  background: #e8edf4;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+#start:hover,
+#restart:hover {
+  background: #fff;
+}
+
+#hud {
+  position: fixed;
+  top: 1.2rem;
+  left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: 0.8rem;
+  background: rgba(11, 14, 19, 0.72);
+  color: #f2f6fb;
   font-size: 0.95rem;
-  opacity: 0.7;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+}
+
+#hud.visible {
+  opacity: 1;
+}
+
+#score {
+  font-weight: 600;
+}
+
+#barrier-status {
+  opacity: 0.75;
+}
+
+#warning-banner {
+  position: fixed;
+  top: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.55rem 1.4rem;
+  border-radius: 999px;
+  background: rgba(192, 57, 43, 0.92);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 0.95rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 5;
+  animation: pulse 0.6s ease-in-out infinite;
+}
+
+#warning-banner.visible {
+  opacity: 1;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.05); }
+}
+
+#barrier-btn {
+  position: fixed;
+  bottom: 1.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.8rem 2rem;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0b0e13;
+  background: rgba(232, 237, 244, 0.94);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  z-index: 5;
+}
+
+#barrier-btn.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#barrier-btn:hover {
+  background: #fff;
 }
