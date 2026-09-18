@@ -18,6 +18,7 @@ import {
   TRAIN_MAX_SPEED,
   BARRIER_SECONDS,
   BARRIER_CLOSE_DELAY,
+  FRENCH_DOUBLE_EXIT_DELAY,
   FLASH_INTERVAL,
   UK_AMBER_SECONDS,
   GERMANY_AMBER_SECONDS,
@@ -70,13 +71,18 @@ export class Game {
     this.gameOver = false;
 
     this.barrierTarget = 0; // 0 raised, 1 lowered - what the player has commanded
-    this.lowered = 0; // 0..1, how far down the gate(s) actually are right now
+    this.lowered = 0; // 0..1, how far down the entry (south) gate actually is
+    this.exitLowered = 0; // 0..1, how far down the exit (north) gate actually
+    // is - identical to `lowered` for every barrierType except
+    // 'frenchdouble', where it lags behind - see updateBarrier()
     this.flashTimer = 0;
     this.flashState = 0;
     this.warningActive = false;
     this.wasLightsOn = false;
     this.waitingToClose = false; // BARRIER_CLOSE_DELAY countdown active - see updateBarrier()
     this.closeDelayTimer = 0;
+    this.waitingToCloseExit = false; // barrierType 'frenchdouble' only
+    this.closeDelayTimerExit = 0;
     this.amberLeadActive = false; // lightStyle 'uk'/'germany' only - see updateBarrier()
     this.amberLeadTimer = 0;
     this.wigwagSwingPhase = 0; // lightStyle 'wigwag' only - see updateBarrier()
@@ -125,13 +131,16 @@ export class Game {
   // the car ahead and (until committed to crossing) behind the gate
   // whenever the barrier is closing or closed. The gate sits out beyond the
   // *combined* multi-track corridor, not any one track, since a car must
-  // clear every track before it is genuinely safe.
-  advanceLane(orderedCars, delta) {
+  // clear every track before it is genuinely safe. `lowered` is whichever
+  // gate this lane's cars actually run into - the south/entry gate's for
+  // northbound cars, the north/exit gate's for southbound (see
+  // updateCars()) - identical for every barrierType except 'frenchdouble'.
+  advanceLane(orderedCars, delta, lowered) {
     let previous = null;
     for (const car of orderedCars) {
       let desired = car.z + car.direction * CAR_SPEED * delta;
 
-      if (!car.committed && this.lowered > 0.12) {
+      if (!car.committed && lowered > 0.12) {
         const gateZ =
           car.direction > 0
             ? -(this.combinedHalfWidth + STOP_LINE_MARGIN)
@@ -163,8 +172,10 @@ export class Game {
   updateCars(delta) {
     const northbound = this.cars.filter((c) => c.direction === 1).sort((a, b) => b.z - a.z);
     const southbound = this.cars.filter((c) => c.direction === -1).sort((a, b) => a.z - b.z);
-    this.advanceLane(northbound, delta);
-    this.advanceLane(southbound, delta);
+    // Northbound cars run into the south/entry gate, southbound into the
+    // north/exit one - see advanceLane()'s own comment.
+    this.advanceLane(northbound, delta, this.lowered);
+    this.advanceLane(southbound, delta, this.exitLowered);
   }
 
   updateBarrier(delta) {
@@ -200,7 +211,46 @@ export class Game {
       this.lowered = Math.max(moveTarget, this.lowered - step);
     }
 
-    for (const unit of this.protectionUnits) unit.apply(this.lowered);
+    // barrierType 'frenchdouble' only: the exit (north) gate runs the exact
+    // same state machine as the entry gate above, just with
+    // FRENCH_DOUBLE_EXIT_DELAY tacked on to its own close-delay wait, so it
+    // starts moving later and reaches fully closed later too. Every other
+    // barrierType keeps `exitLowered` identical to `lowered`, so nothing
+    // else changes for them.
+    if (this.settings.barrierType === 'frenchdouble') {
+      if (this.barrierTarget === 1) {
+        if (!this.waitingToCloseExit && this.exitLowered === 0) {
+          this.waitingToCloseExit = true;
+          this.closeDelayTimerExit = BARRIER_CLOSE_DELAY + FRENCH_DOUBLE_EXIT_DELAY;
+        }
+      } else {
+        this.waitingToCloseExit = false;
+      }
+
+      let exitMoveTarget = this.barrierTarget;
+      if (this.waitingToCloseExit) {
+        this.closeDelayTimerExit -= delta;
+        if (this.closeDelayTimerExit > 0) {
+          exitMoveTarget = this.exitLowered;
+        } else {
+          this.waitingToCloseExit = false;
+        }
+      }
+
+      if (this.exitLowered < exitMoveTarget) {
+        this.exitLowered = Math.min(exitMoveTarget, this.exitLowered + step);
+      } else if (this.exitLowered > exitMoveTarget) {
+        this.exitLowered = Math.max(exitMoveTarget, this.exitLowered - step);
+      }
+    } else {
+      this.exitLowered = this.lowered;
+    }
+
+    // protectionUnits[0] is the south/entry approach, [1] north/exit - see
+    // scene.js's buildScene(). Every barrierType but 'frenchdouble' drives
+    // both from the same `lowered` value since exitLowered mirrors it.
+    this.protectionUnits[0].apply(this.lowered);
+    this.protectionUnits[1].apply(this.exitLowered);
 
     // On, from the command, the instant it is given - not from `lowered`
     // alone, which is what would make the lights wait for BARRIER_CLOSE_DELAY

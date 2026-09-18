@@ -7,6 +7,7 @@ export const BARRIER_TYPES = [
   { value: 'default', label: 'Default (full boom)' },
   { value: 'half', label: 'Half barrier' },
   { value: 'double', label: 'Double barrier' },
+  { value: 'frenchdouble', label: 'French practice double' },
   { value: 'swing', label: 'Swing gate' },
   { value: 'trolley', label: 'Trolley gate' },
   { value: 'none', label: 'None' },

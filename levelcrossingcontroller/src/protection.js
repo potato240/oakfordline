@@ -445,6 +445,10 @@ function buildGate(type, postX, stopZ, reachDirection) {
     case 'half':
       return buildBoomGate(postX, stopZ, reachDirection, ROAD_HALF_WIDTH + 0.6);
     case 'double':
+    case 'frenchdouble':
+      // Same MCB-OD-style two-post lattice gate as 'double' - 'frenchdouble'
+      // differs only in *when* each approach's gate starts closing
+      // (Game.updateBarrier()'s exitLowered), not in how it looks.
       return buildDoubleBarrierGate(postX, stopZ, reachDirection);
     case 'swing':
       return buildSwingGate(postX, stopZ, reachDirection);

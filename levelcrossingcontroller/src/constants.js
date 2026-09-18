@@ -57,6 +57,15 @@ export const FLASH_INTERVAL = 0.5; // lamp alternation while the barrier is acti
 // there is no equivalent safety reason to delay that.
 export const BARRIER_CLOSE_DELAY = 2;
 
+// Real French practice at some double-barrier crossings closes the gates in
+// two stages rather than together: the entry side first, the exit side a
+// short while after, giving any vehicle already between the gates a moment
+// longer to clear before it too comes down - barrierType: 'frenchdouble'
+// only (Game.updateBarrier() / protection.js's south approach as "entry",
+// north as "exit"). This is *on top of* BARRIER_CLOSE_DELAY above, not
+// instead of it: the exit gate's own wait is BARRIER_CLOSE_DELAY plus this.
+export const FRENCH_DOUBLE_EXIT_DELAY = 1.5;
+
 // Real UK level crossing signals show a steady amber for this long before
 // the red lamps start flashing - lightStyle: 'uk' only (protection.js /
 // Game.updateBarrier()). Every other light style flashes red immediately.

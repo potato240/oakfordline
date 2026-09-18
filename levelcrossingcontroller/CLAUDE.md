@@ -45,7 +45,7 @@ A complete, playable MVP, now with customisation:
   arrival - see `Game.nextTrainETA()` below.
 - **Customisation**, chosen on the start screen and persisted to
   `localStorage`: barrier style (full boom / half barrier / double barrier /
-  swing gate / trolley gate / none), light style (default / UK / America /
+  French practice double / swing gate / trolley gate / none), light style (default / UK / America /
   France / Sweden / the Netherlands / Germany / Vertical / Wig-Wag / none), track count (1-4), and
   surroundings (default / city / town / farm / village / rural). See
   "Customisation" below - a settings
@@ -304,7 +304,8 @@ only clears live state (trains, cars, score) for a same-settings replay,
 which is why "Try Again" and "Change Settings" are two different buttons on
 the game-over screen with two different effects.
 
-**Barrier and light style are purely visual** - every combination plays
+**Barrier and light style are purely visual, with one deliberate
+exception (`frenchdouble` - see below)** - every other combination plays
 identically underneath. `Game`'s own `barrierTarget`/`lowered` state (what
 the *player* commands) is what stops traffic in every case; `barrierType`
 only controls what geometry represents that state, right down to
@@ -324,8 +325,11 @@ pivots about a horizontal (Z) axis (`default`/`half`, differing only in
 `boomLength`), a `swing` gate pivots about a *vertical* (Y) axis instead
 (open = parallel to the road, closed = swung across it), and a `trolley`
 gate translates sideways along an overhead rail rather than rotating at all.
-`Game.updateBarrier()` does not need to know which: it just calls
-`unit.apply(this.lowered)` for each approach every frame.
+`Game.updateBarrier()` mostly does not need to know which: it just calls
+`protectionUnits[0].apply(this.lowered)` (south/entry) and
+`protectionUnits[1].apply(this.exitLowered)` (north/exit) every frame -
+`exitLowered` mirrors `lowered` exactly for every `barrierType` except
+`frenchdouble` (see below), so this is a no-op distinction everywhere else.
 
 **`double` is modelled on a real UK "MCB-OD" crossing, not just given a
 second arm.** A real double-barrier crossing does not use one arm spanning
@@ -344,6 +348,51 @@ once for a new post at the mirrored position on the opposite edge, with the
 opposite reach direction. Verified against a reference photo of a real UK
 double-barrier crossing: two posts, two arms closing from opposite edges
 with a small overlap in the middle, not two arms on one post.
+
+**`frenchdouble` looks identical to `double` - same
+`buildDoubleBarrierGate()` geometry, same `buildGate()` case - but is the
+one `barrierType` that is not purely visual.** Real French practice at
+some double-barrier crossings closes the two gates in two stages: the entry
+side first, the exit side a short while after, rather than both together -
+giving a vehicle already between the gates a little longer to clear before
+it too comes down. This game's two approaches (`protectionUnits[0]`/`[1]`,
+built as `southUnit`/`northUnit` in `scene.js`) are arbitrarily but
+consistently labelled entry (south) and exit (north) for this purpose, not
+picked per travel direction - south always closes first, north always
+lags, regardless of which lane a given car is in. `Game.updateBarrier()`
+runs the exit gate through the *exact same* state machine the entry gate
+already used for `BARRIER_CLOSE_DELAY` (`waitingToClose`/`closeDelayTimer`
+→ `waitingToCloseExit`/`closeDelayTimerExit`, own `exitLowered` value
+instead of `lowered`), just with `FRENCH_DOUBLE_EXIT_DELAY` (1.5s) added on
+top of its own close-delay wait - so it starts moving `FRENCH_DOUBLE_EXIT_DELAY`
+after the entry gate does, and reaches fully closed that much later too.
+For every other `barrierType`, `exitLowered` is simply assigned `lowered`
+every frame, so nothing about them changes.
+
+This also had to reach into car-stopping, not just the visuals, to stay
+honest: `Game.advanceLane()` used to clamp every lane against the single
+shared `this.lowered`, which would have looked broken for `frenchdouble`
+(a lane's cars stopping in sync with the *entry* gate even though their own
+gate, still up, hadn't moved yet). `advanceLane()` now takes the relevant
+`lowered` value as a parameter rather than reading `this.lowered` directly,
+and `Game.updateCars()` passes `this.lowered` for the northbound lane
+(which runs into the south/entry gate) and `this.exitLowered` for the
+southbound lane (which runs into the north/exit gate) - identical to
+before for every `barrierType` but `frenchdouble`, where the two lanes now
+genuinely stop on their own gate's own schedule. Note this game's cars
+already drive straight through once `committed` (see "Cars: commit or stop,
+never both" above) regardless of `barrierType`, so the real-world safety
+rationale (letting a vehicle already mid-crossing get clear) has no
+separate mechanism to add here - it is already handled the same way for
+every style; `frenchdouble` only changes *when* each side's gate starts
+moving. Verified with a scripted run: with the entry gate's `BARRIER_CLOSE_DELAY`
+(2s) elapsing at ~1.97s and reaching fully closed at ~3.53s, the exit
+gate's own wait (`BARRIER_CLOSE_DELAY + FRENCH_DOUBLE_EXIT_DELAY`, 3.5s)
+elapses at ~3.50s and reaches fully closed at ~5.07s - a consistent
+`FRENCH_DOUBLE_EXIT_DELAY`-sized lag throughout, and a same-settings run
+with `barrierType: 'double'` confirmed `lowered` and `exitLowered` never
+differ at all. The full 70 barrier×light combination regression (including
+`frenchdouble`) is clean.
 
 Light styles
 (`buildLamps()`) differ in shape (round/square), arrangement (side-by-side/
