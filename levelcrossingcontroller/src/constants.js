@@ -62,6 +62,13 @@ export const BARRIER_CLOSE_DELAY = 2;
 // Game.updateBarrier()). Every other light style flashes red immediately.
 export const UK_AMBER_SECONDS = 3;
 
+// A real German Bü signal shows its yellow lamp steadily lit for this long
+// before the red one starts flashing - lightStyle: 'germany' only, the same
+// lead-in idea as UK_AMBER_SECONDS above but its own shorter duration
+// (Game.updateBarrier() shares the one amber-lead-in state machine between
+// both styles, keyed off `lightStyle`).
+export const GERMANY_AMBER_SECONDS = 2;
+
 // lightStyle: 'wigwag' only - how fast and how far the lamp's arm swings
 // while active (Game.updateBarrier() drives `swingPivot.rotation.z` from
 // these). PERIOD is seconds for one full back-and-forth cycle; AMPLITUDE is

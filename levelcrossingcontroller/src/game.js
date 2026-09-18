@@ -20,6 +20,7 @@ import {
   BARRIER_CLOSE_DELAY,
   FLASH_INTERVAL,
   UK_AMBER_SECONDS,
+  GERMANY_AMBER_SECONDS,
   WIGWAG_SWING_PERIOD,
   WIGWAG_SWING_AMPLITUDE,
   WARNING_LEAD_TIME,
@@ -76,8 +77,8 @@ export class Game {
     this.wasLightsOn = false;
     this.waitingToClose = false; // BARRIER_CLOSE_DELAY countdown active - see updateBarrier()
     this.closeDelayTimer = 0;
-    this.ukAmberActive = false; // lightStyle 'uk' only - see updateBarrier()
-    this.ukAmberTimer = 0;
+    this.amberLeadActive = false; // lightStyle 'uk'/'germany' only - see updateBarrier()
+    this.amberLeadTimer = 0;
     this.wigwagSwingPhase = 0; // lightStyle 'wigwag' only - see updateBarrier()
 
     this.trainTimer = 3;
@@ -206,20 +207,27 @@ export class Game {
     // too instead of warning *before* the gate actually moves.
     const lightsOn = this.barrierTarget === 1 || this.lowered > 0.02;
 
-    // The real UK sequence: a steady amber lead-in before the reds ever
-    // start flashing, starting fresh every time the lights come on from
-    // off (not just once per game) - every other light style skips this
-    // entirely and goes straight to flashing red.
-    if (lightsOn && !this.wasLightsOn && this.settings.lightStyle === 'uk') {
-      this.ukAmberActive = true;
-      this.ukAmberTimer = UK_AMBER_SECONDS;
+    // The real UK and German sequences: a steady amber/yellow lead-in
+    // before the reds ever start flashing, starting fresh every time the
+    // lights come on from off (not just once per game) - every other light
+    // style skips this entirely and goes straight to flashing red. Both
+    // styles share this one state machine, keyed off `lightStyle` only for
+    // which duration to use - the behaviour itself is identical.
+    if (lightsOn && !this.wasLightsOn) {
+      if (this.settings.lightStyle === 'uk') {
+        this.amberLeadActive = true;
+        this.amberLeadTimer = UK_AMBER_SECONDS;
+      } else if (this.settings.lightStyle === 'germany') {
+        this.amberLeadActive = true;
+        this.amberLeadTimer = GERMANY_AMBER_SECONDS;
+      }
     }
-    if (!lightsOn) this.ukAmberActive = false;
+    if (!lightsOn) this.amberLeadActive = false;
 
     if (lightsOn) {
-      if (this.ukAmberActive) {
-        this.ukAmberTimer -= delta;
-        if (this.ukAmberTimer <= 0) this.ukAmberActive = false;
+      if (this.amberLeadActive) {
+        this.amberLeadTimer -= delta;
+        if (this.amberLeadTimer <= 0) this.amberLeadActive = false;
       } else {
         this.flashTimer += delta;
         if (this.flashTimer >= FLASH_INTERVAL) {
@@ -231,7 +239,7 @@ export class Game {
     this.wasLightsOn = lightsOn;
 
     // 'wigwag' only: the lamp's arm physically swings while active - a
-    // continuous oscillation, not tied to flashState/ukAmberActive at all,
+    // continuous oscillation, not tied to flashState/amberLeadActive at all,
     // since the swinging motion itself *is* the signal here, the way a
     // flashing lamp is everywhere else. Snaps back to rest (angle 0) the
     // instant the lights go off, rather than drifting to a stop.
@@ -250,15 +258,16 @@ export class Game {
     for (const lamp of this.lamps) {
       let lit;
       if (lamp.phase === 'amber') {
-        // The amber lamp (lightStyle 'uk' only) is steady during its own
-        // phase and off otherwise - it never joins the reds' alternation.
-        lit = on && this.ukAmberActive;
+        // The amber/yellow lead-in lamp ('uk'/'germany' only) is steady
+        // during its own phase and off otherwise - it never joins the
+        // reds' alternation.
+        lit = on && this.amberLeadActive;
       } else if (lamp.phase === 'wigwag') {
         // Continuously lit while active - the swinging arm (above) is what
         // reads as "on/off" to a driver, not the lamp itself flashing.
         lit = on;
       } else {
-        lit = on && !this.ukAmberActive && this.flashState === lamp.phase;
+        lit = on && !this.amberLeadActive && this.flashState === lamp.phase;
       }
       lamp.mesh.material.emissiveIntensity = lit ? 2.2 : 0;
       lamp.mesh.material.color.setHex(lit ? lamp.onColor ?? 0xff5544 : lamp.offColor ?? 0x5c1512);

@@ -28,6 +28,7 @@ export const LIGHT_STYLES = [
   { value: 'france', label: 'France' },
   { value: 'sweden', label: 'Sweden' },
   { value: 'netherlands', label: 'The Netherlands' },
+  { value: 'germany', label: 'Germany' },
   { value: 'wigwag', label: 'Wig-Wag' },
   { value: 'none', label: 'None' },
 ];

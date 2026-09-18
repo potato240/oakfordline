@@ -46,7 +46,7 @@ A complete, playable MVP, now with customisation:
 - **Customisation**, chosen on the start screen and persisted to
   `localStorage`: barrier style (full boom / half barrier / double barrier /
   swing gate / trolley gate / none), light style (default / UK / America /
-  France / Sweden / the Netherlands / Wig-Wag / none), track count (1-4), and
+  France / Sweden / the Netherlands / Germany / Wig-Wag / none), track count (1-4), and
   surroundings (default / city / town / farm / village / rural). See
   "Customisation" below - a settings
   *change* only takes effect on a fresh `Game`, since the scene it builds is
@@ -350,7 +350,9 @@ Light styles
 stacked), and flash behaviour (alternating/in-phase) - **stylised,
 simplified homages, not accurate reproductions of any real country's actual
 signalling standard, except `uk` and `america` (deliberate exceptions, see
-below) and `france` (two confirmed real details, see below)**.
+below), `france` (two confirmed real details, see below), and `germany`
+(the stacked red-over-yellow head and its amber-lead-in sequence, see
+below)**.
 `lightStyle: 'none'` suppresses `playWarningDing()` entirely, not
 just the lamp mesh - it represents no warning *system*, audio included, not
 merely invisible lamps that still ring a bell.
@@ -362,24 +364,52 @@ lights - every other style here (and most other countries' crossings) skips
 straight to flashing red the instant the lights come on. `buildLamps()`
 adds a third lamp, tagged `phase: 'amber'` with its own `onColor`/`offColor`
 (`buildRoundLamp()`'s `options` argument, added for exactly this), positioned
-above the usual pair. `Game.updateBarrier()` tracks `ukAmberActive` and
-`ukAmberTimer`: the instant the lights turn on from off
-(`lightsOn && !this.wasLightsOn`) with `lightStyle === 'uk'`, it starts a
-fresh `UK_AMBER_SECONDS` (3s) countdown, holding the reds dark and the amber
-lit steady; once it elapses, `ukAmberActive` clears and the normal
-`flashState`-driven alternation (shared with every other style) takes over.
-`Game.setLamps()` has one extra branch for this: a lamp with `phase ===
-'amber'` is lit purely by `ukAmberActive`, never by `flashState`, so it can
-never accidentally join the reds' alternation. The UK post is also
-deliberately left plain - a banded post was never a real UK feature (an
-earlier version had one; removed, along with banding for every style, once
-it became clear it wasn't accurate anywhere), the amber-then-red sequence is
-what actually distinguishes it. Verified with a scripted run: amber lights
-within one frame of the barrier starting to lower and stays lit steady for
-exactly `UK_AMBER_SECONDS`, the reds stay dark the entire time, and only
-then do they start alternating (confirmed genuinely alternating, never both
-lit together) - and every other light style is unaffected (`ukAmberActive`
-never becomes `true` unless `lightStyle` is `'uk'`).
+above the usual pair. `Game.updateBarrier()` tracks `amberLeadActive` and
+`amberLeadTimer` (shared with `germany`, see below): the instant the lights
+turn on from off (`lightsOn && !this.wasLightsOn`) with `lightStyle ===
+'uk'`, it starts a fresh `UK_AMBER_SECONDS` (3s) countdown, holding the reds
+dark and the amber lit steady; once it elapses, `amberLeadActive` clears and
+the normal `flashState`-driven alternation (shared with every other style)
+takes over. `Game.setLamps()` has one extra branch for this: a lamp with
+`phase === 'amber'` is lit purely by `amberLeadActive`, never by
+`flashState`, so it can never accidentally join the reds' alternation. The
+UK post is also deliberately left plain - a banded post was never a real UK
+feature (an earlier version had one; removed, along with banding for every
+style, once it became clear it wasn't accurate anywhere), the amber-then-red
+sequence is what actually distinguishes it. Verified with a scripted run:
+amber lights within one frame of the barrier starting to lower and stays lit
+steady for exactly `UK_AMBER_SECONDS`, the reds stay dark the entire time,
+and only then do they start alternating (confirmed genuinely alternating,
+never both lit together) - and every other light style is unaffected
+(`amberLeadActive` never becomes `true` unless `lightStyle` is `'uk'` or
+`'germany'`).
+
+**`germany` reuses the UK's amber-lead-in machinery for its own real
+detail, not a bespoke sequence.** A real German Bü signal is a single
+stacked signal head - red lamp on top, yellow directly below - where the
+yellow lights steady first and the red only starts flashing once the yellow
+period ends, the same "steady warning colour before the flashing one" shape
+as the UK's amber-then-red, just with the second colour built into the same
+head instead of a separate lamp pair. `buildLamps()`'s `'germany'` branch
+places a plain `phase: 0` red lamp at `y = 2.4` and a `phase: 'amber'`
+yellow lamp at `y = 2.08` directly below it - reusing the exact `'amber'`
+phase tag `uk`'s lamp uses, so `Game.setLamps()` needed no new branch at
+all. `Game.updateBarrier()`'s lead-in trigger only gained an `else if
+(lightStyle === 'germany')` arm picking `GERMANY_AMBER_SECONDS` (2s, its own
+shorter duration) instead of `UK_AMBER_SECONDS` - the state machine
+(`amberLeadActive`/`amberLeadTimer`, previously named `ukAmberActive`/
+`ukAmberTimer` before this made it explicitly shared) is otherwise
+identical for both styles. This shipped as a direct correction: the first
+version gave `germany` two lamps both on `phase: 0`, just flashing together
+in unison with no lead-in at all - "yellow goes on before red like uk"
+prompted switching the yellow lamp to `phase: 'amber'` and wiring the
+trigger, rather than the flash-together version being the intended design.
+Verified with a scripted run: the red lamp's `emissiveIntensity` stays `0`
+for the entire `amberLeadActive` window while the yellow's never drops to
+`0` during it, and the red only starts flashing once `amberLeadActive`
+clears - `germany` and `uk` never interfere with each other (`amberLeadActive`
+only triggers for the matching `lightStyle`) and the full 54 barrier×light
+combination regression (including `'germany'`) is clean.
 
 **`america` is a real crossbuck signal, not a crossbuck with lamps floating
 beside it at the same height.** A real US crossing's pair of alternately
@@ -526,9 +556,11 @@ For settings specifically: `new Game(settings)` (headless - `node -e` with
 `global.window = { innerWidth, innerHeight }` stubbed, since `scene.js`
 reads those for the camera's aspect ratio and there is otherwise no DOM
 dependency) is enough to construct and run every barrier×light×track×
-surroundings combination without a browser at all, which is how all 36
-combinations got smoke-tested (construct, run 200 steps, toggle the
-barrier, run 200 more, confirm nothing throws) before ever loading a page.
+surroundings combination without a browser at all, which is how the full set
+of combinations (54 barrier×light alone as of `germany`/`wigwag`) got
+smoke-tested (construct, run simulated seconds with an auto-controller
+reacting to warnings, confirm `gameOver` never triggers) before ever loading
+a page.
 Live-browser checks after that were for the things a headless run can't
 show: that each gate style actually reads as visually distinct, that the
 settings `<select>`s populate and round-trip through "Change Settings"

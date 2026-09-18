@@ -154,6 +154,25 @@ function buildLamps(style, postX, stopZ, parent, lamps) {
     return;
   }
 
+  if (style === 'germany') {
+    // A single signal head, not a pair spread across the post: a red lamp
+    // on top, a yellow one directly below it. The real Bü sequence, like
+    // the UK's: the yellow lights steady first (phase 'amber', reusing the
+    // same lead-in machinery UK's amber lamp uses - see Game.updateBarrier()
+    // / GERMANY_AMBER_SECONDS), then the red starts flashing alone once it
+    // elapses - not both flashing together, and not red-first like every
+    // other style here.
+    parent.add(buildRoundLamp(postX, 2.4, stopZ, 0, lamps));
+    parent.add(
+      buildRoundLamp(postX, 2.08, stopZ, 'amber', lamps, {
+        onColor: 0xffcc00,
+        offColor: 0x4a3a12,
+        emissive: 0xffb300,
+      })
+    );
+    return;
+  }
+
   if (style === 'wigwag') {
     parent.add(buildWigWagUnit(postX, stopZ, lamps));
     return;
