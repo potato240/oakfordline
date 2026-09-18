@@ -163,6 +163,27 @@ body {
   opacity: 0.75;
 }
 
+#next-train {
+  position: fixed;
+  top: 1.2rem;
+  right: 1.2rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.8rem;
+  background: rgba(11, 14, 19, 0.72);
+  color: #f2f6fb;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 5;
+}
+
+#next-train.visible {
+  opacity: 1;
+}
+
 #warning-banner {
   position: fixed;
   top: 1.2rem;

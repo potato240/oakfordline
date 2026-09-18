@@ -23,13 +23,23 @@ export const CAR_WIDTH = 1.5;
 export const CAR_SPEED = 9; // units/s
 export const CAR_MIN_GAP = 1.4; // bumper-to-bumper clearance in a queue
 
-// How far short of the danger zone a queued car's *centre* stops. Must
-// clear the car's own half-length or its front bumper would already be
-// overlapping the danger zone - and therefore already "committed" (see
-// Car.occupiesZone() in entities.js / Game.advanceLane() in game.js) -
-// before it ever reaches the stop line the barrier is supposed to hold it
-// at. Comfortably bigger than CAR_LENGTH / 2 (1.3) on purpose.
+// How far out from the danger zone the gate itself stands - this is a gate
+// position, not a stop line (see GATE_CLEARANCE below for the actual
+// stopping point), but has to stay comfortably bigger than CAR_LENGTH / 2
+// (1.3) regardless: a smaller value let a queueing car's front bumper reach
+// all the way into the danger zone - and so become permanently "committed"
+// (Car.overlapsBand() / Game.advanceLane()) - before the gate could ever
+// hold it.
 export const STOP_LINE_MARGIN = 1.6;
+
+// A queued car's *front bumper*, not its centre, stops this far short of
+// the gate - Game.advanceLane() clamps `centre = gateZ - direction *
+// (car.halfLength + GATE_CLEARANCE)` specifically so the car's body stops
+// visibly before the barrier rather than at it. Clamping the centre straight
+// to gateZ (an earlier version did this) left the car's own half-length
+// hanging past the gate line, reading as the car stopping *inside* the
+// barrier rather than in front of it.
+export const GATE_CLEARANCE = 0.35;
 
 export const TRAIN_WIDTH = 2.4;
 export const TRAIN_MIN_LENGTH = 10;

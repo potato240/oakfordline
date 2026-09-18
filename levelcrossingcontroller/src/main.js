@@ -18,6 +18,7 @@ const hud = document.getElementById('hud');
 const scoreEl = document.getElementById('score');
 const barrierStatusEl = document.getElementById('barrier-status');
 const warningBanner = document.getElementById('warning-banner');
+const nextTrainEl = document.getElementById('next-train');
 const barrierButton = document.getElementById('barrier-btn');
 const gameOverEl = document.getElementById('gameover');
 const finalScoreEl = document.getElementById('final-score');
@@ -107,6 +108,7 @@ function beginGame() {
   gameOverEl.classList.add('hidden');
   hud.classList.add('visible');
   barrierButton.classList.add('visible');
+  nextTrainEl.classList.add('visible');
   started = true;
 }
 
@@ -124,6 +126,7 @@ function restart() {
   gameOverEl.classList.add('hidden');
   hud.classList.add('visible');
   barrierButton.classList.add('visible');
+  nextTrainEl.classList.add('visible');
 }
 
 restartButton.addEventListener('click', restart);
@@ -133,8 +136,20 @@ changeSettingsButton.addEventListener('click', () => {
   gameOverEl.classList.add('hidden');
   hud.classList.remove('visible');
   barrierButton.classList.remove('visible');
+  nextTrainEl.classList.remove('visible');
   overlay.classList.remove('hidden');
 });
+
+// "1:32" once it is a minute or more out, otherwise a plain "45s" - trains
+// can be up to TRAIN_INTERVAL_MAX (120s) apart, so the box would otherwise
+// spend a lot of its time reading a bare, hard-to-parse second count.
+function formatCountdown(seconds) {
+  const whole = Math.max(0, Math.ceil(seconds));
+  if (whole < 60) return `${whole}s`;
+  const minutes = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return `${minutes}:${String(rest).padStart(2, '0')}`;
+}
 
 document.addEventListener('keydown', (event) => {
   if (event.code === 'Space') {
@@ -164,12 +179,16 @@ renderer.setAnimationLoop(() => {
     ? 'Raise Barrier (Space)'
     : 'Lower Barrier (Space)';
   warningBanner.classList.toggle('visible', game.warningActive && !game.gameOver);
+  nextTrainEl.textContent = game.gameOver
+    ? 'Next train: --'
+    : `Next train: ${formatCountdown(game.nextTrainETA())}`;
 
   if (game.gameOver && !wasGameOver) {
     finalScoreEl.textContent = `Final score: ${game.score}`;
     gameOverEl.classList.remove('hidden');
     hud.classList.remove('visible');
     barrierButton.classList.remove('visible');
+    nextTrainEl.classList.remove('visible');
   }
   wasGameOver = game.gameOver;
 

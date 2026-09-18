@@ -8,6 +8,7 @@ import {
   TRACK_HALF_WIDTH,
   TRACK_SPACING,
   STOP_LINE_MARGIN,
+  GATE_CLEARANCE,
   LANE_OFFSET,
   CAR_MIN_GAP,
   CAR_SPEED,
@@ -107,20 +108,24 @@ export class Game {
   }
 
   // One lane's worth of cars, ordered lead car first, each clamped behind
-  // the car ahead and (until committed to crossing) behind the stop line
-  // whenever the barrier is closing or closed. The stop line sits behind
-  // the *combined* multi-track corridor, not any one track, since a car
-  // must clear every track before it is genuinely safe.
+  // the car ahead and (until committed to crossing) behind the gate
+  // whenever the barrier is closing or closed. The gate sits out beyond the
+  // *combined* multi-track corridor, not any one track, since a car must
+  // clear every track before it is genuinely safe.
   advanceLane(orderedCars, delta) {
     let previous = null;
     for (const car of orderedCars) {
       let desired = car.z + car.direction * CAR_SPEED * delta;
 
       if (!car.committed && this.lowered > 0.12) {
-        const stopZ =
+        const gateZ =
           car.direction > 0
             ? -(this.combinedHalfWidth + STOP_LINE_MARGIN)
             : this.combinedHalfWidth + STOP_LINE_MARGIN;
+        // The car's front bumper, not its centre, is what should stop short
+        // of the gate - otherwise its own half-length hangs past the gate
+        // line and it reads as stopping inside the barrier.
+        const stopZ = gateZ - car.direction * (car.halfLength + GATE_CLEARANCE);
         desired = car.direction > 0 ? Math.min(desired, stopZ) : Math.max(desired, stopZ);
       }
 
@@ -195,6 +200,24 @@ export class Game {
       playWarningDing();
     }
     this.warningActive = active;
+  }
+
+  // Seconds until the next train reaches the danger zone, for the "next
+  // train" HUD box - not "how long until one spawns" (trainTimer alone),
+  // since a spawned-but-still-approaching train arrives sooner than that
+  // and is the actually relevant number once one is en route. Falls back to
+  // trainTimer (the spawn countdown) when nothing is live yet, which is the
+  // best estimate available at that point, even though the real arrival is
+  // spawn time plus however long it then takes to reach the zone.
+  nextTrainETA() {
+    let soonest = this.trainTimer;
+    for (const train of this.trains) {
+      if (train.occupiesZone(ROAD_HALF_WIDTH)) return 0; // already there
+      const distance = train.distanceToZone(ROAD_HALF_WIDTH);
+      if (distance <= 0) continue; // already cleared - not "next"
+      soonest = Math.min(soonest, distance / train.speed);
+    }
+    return soonest;
   }
 
   // Checked per train, against that train's own track band specifically -

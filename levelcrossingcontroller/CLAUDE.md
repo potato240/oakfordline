@@ -39,6 +39,8 @@ A complete, playable MVP, now with customisation:
 - Score: +1 per car that clears the crossing, +2 per train. Collision ends
   the run with a game-over screen, a same-settings restart, and a link back
   to the settings screen.
+- A small "Next train" box (top right) counting down to the next train's
+  arrival - see `Game.nextTrainETA()` below.
 - **Customisation**, chosen on the start screen and persisted to
   `localStorage`: barrier style (full boom / half barrier / swing gate /
   trolley gate / none), light style (default / UK / America / Sweden / the
@@ -117,8 +119,8 @@ first) and clamps each one's desired position by, at most, two things:
 
 1. **The car ahead** - a fixed minimum gap, always enforced, regardless of
    the barrier.
-2. **The stop line** - only if the car has not yet `committed`, and only
-   while the barrier is closing or closed (`this.lowered > 0.12`).
+2. **The gate** - only if the car has not yet `committed`, and only while
+   the barrier is closing or closed (`this.lowered > 0.12`).
 
 `committed` is set, permanently, the moment a car's own
 `overlapsBand(0, combinedHalfWidth)` first turns true - once a car's body has
@@ -129,23 +131,30 @@ mid-crossing. This is what makes closing the barrier *late* genuinely
 dangerous rather than merely rude: a car already committed when the gates
 come down carries on regardless.
 
-**This is also where a real bug lived**, worth knowing about if the zone or
-car dimensions ever change: the stop line sits at
-`combinedHalfWidth + STOP_LINE_MARGIN` from the crossing centre, but a
-car's overlap check is about its *body*, not its centre point - it turns
-true once the car's front bumper (its centre plus `CAR_LENGTH / 2`) reaches
-the zone edge, not once its centre does.
-`STOP_LINE_MARGIN` was originally `1.0`, smaller than `CAR_LENGTH / 2`
-(`1.3`) - so a queueing car's front bumper crossed into the danger zone,
-and so became permanently `committed`, *before* its centre ever reached the
-stop line the barrier clamp was supposed to hold it at. Cars sailed straight
-through a fully lowered barrier without ever stopping. Fixed by making
-`STOP_LINE_MARGIN` (`1.6`) comfortably bigger than `CAR_LENGTH / 2`, so a
-stopped car's body never overlaps the zone in the first place. Verified with
-a scripted test: a car placed 40 units out, with the barrier commanded down
-immediately, now stops with its centre exactly at the stop line and a train
-passes clean through the zone with zero overlap - `sawCollision: false`
-across the whole run.
+**This is also where two real bugs lived**, both worth knowing about if the
+zone or car dimensions ever change:
+
+1. The danger zone's edge sits at `combinedHalfWidth`, but a car's overlap
+   check is about its *body*, not its centre point - it turns true once the
+   car's front bumper (its centre plus `CAR_LENGTH / 2`) reaches the zone
+   edge, not once its centre does. `STOP_LINE_MARGIN` (how far out the gate
+   itself stands from that edge) was originally `1.0`, smaller than
+   `CAR_LENGTH / 2` (`1.3`) - so a queueing car's front bumper crossed into
+   the danger zone, and so became permanently `committed`, *before* its
+   centre ever reached the gate. Cars sailed straight through a fully
+   lowered barrier without ever stopping. Fixed by making `STOP_LINE_MARGIN`
+   (`1.6`) comfortably bigger than `CAR_LENGTH / 2`.
+2. Fixing that revealed a second, related one: the clamp stopped a car's
+   *centre* exactly at the gate's own Z position, which still leaves the
+   car's front half-length hanging *past* the gate line - the car visibly
+   stopped inside the barrier rather than in front of it. Fixed by clamping
+   the front bumper instead: `centre = gateZ - direction * (car.halfLength +
+   GATE_CLEARANCE)`, so the car's body stops `GATE_CLEARANCE` (`0.35`) short
+   of the gate, not straddling it. Verified with a scripted test across
+   1/2/4 tracks: the front bumper sits exactly `0.35` short of the gate line
+   in every case, and (separately) a car placed 40 units out with the
+   barrier commanded down immediately still stops cleanly and a train
+   passes clean through the zone with zero overlap.
 
 ## The warning has to actually turn off again
 
@@ -171,6 +180,22 @@ this) kept the barrier down almost continuously and cars backed up
 unboundedly. A 600-second soak test with the fix landed at a steady 25
 distinct warning-on events rather than 1, confirming the warning genuinely
 toggles off between trains again.
+
+## "Next train" is not just the spawn timer
+
+`Game.trainTimer` is seconds until the *next spawn*, not seconds until a
+train actually reaches the crossing - a train that has already spawned and
+is en route arrives sooner than that, and is the number a player actually
+cares about once one is on its way. `Game.nextTrainETA()` (the HUD box in
+`main.js`, formatted as `Ns` or `M:SS` once it is a minute or more out)
+returns the smaller of the two: `trainTimer` as a fallback estimate when
+nothing is live yet, or the soonest live train's own `distanceToZone(...) /
+speed` once one has spawned - `0` outright if a train already occupies the
+zone. Verified directly: with no live trains it reads exactly `trainTimer`;
+a train placed 5s out overrides a 45s `trainTimer`; a train already in the
+zone reads `0`; and a train that has already passed falls back to
+`trainTimer` again rather than getting stuck, the same "already cleared, not
+a threat" distinction `updateWarning()` relies on above.
 
 ## Traffic can still legitimately overwhelm the crossing - MAX_CARS caps it
 
