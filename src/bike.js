@@ -2,9 +2,11 @@ import * as THREE from 'three';
 
 // A rideable bicycle, parked out in the world. Unlike the train seats
 // (Player pins to a spot the train carries) riding this one is player-driven:
-// W/S throttle and A/D steer a small heading+speed model, the same shape as
-// BranchTrain's own distance/heading state but driven by input instead of a
-// timetable.
+// W/S throttle a small heading+speed model, the same shape as BranchTrain's
+// own distance/heading state but driven by input instead of a timetable.
+// Steering itself is not a left/right input at all - the bike turns toward
+// wherever the camera is currently looking, the same "look to steer" feel
+// as leaning a real bike by turning your head/shoulders into a turn.
 
 const WHEEL_RADIUS = 0.33;
 const WHEELBASE = 1.05;
@@ -136,10 +138,13 @@ export class Bike {
     };
   }
 
-  // throttle/steer are -1..1 (S/W and A/D). Reuses the world's own Colliders
-  // instance so a ridden bike bumps into the same benches, columns and walls
-  // a walking player would, rather than passing through them.
-  update(delta, throttle, steer, colliders) {
+  // throttle is -1..1 (S/W). `lookHeading` is wherever the camera is
+  // currently pointed, in the exact same radians/convention as `this.heading`
+  // (rotation.y = 0 faces -Z) - the bike steers toward it rather than
+  // integrating a left/right input directly. Reuses the world's own
+  // Colliders instance so a ridden bike bumps into the same benches, columns
+  // and walls a walking player would, rather than passing through them.
+  update(delta, throttle, lookHeading, colliders) {
     if (throttle > 0) {
       this.speed = Math.min(MAX_SPEED, this.speed + ACCELERATION * delta);
     } else if (throttle < 0) {
@@ -150,10 +155,18 @@ export class Bike {
       this.speed = Math.min(0, this.speed + FRICTION_DECEL * delta);
     }
 
-    // A real bike cannot turn on the spot - steering is scaled by speed so it
-    // barely bites while nearly stopped and bites fully once moving.
+    // A real bike cannot turn on the spot - the catch-up rate is scaled by
+    // speed so it barely bites while nearly stopped and bites fully once
+    // moving, then capped at TURN_RATE so whipping the camera around does not
+    // snap the bike instantly to face it.
     const steerStrength = THREE.MathUtils.clamp(Math.abs(this.speed) / 2.5, 0.2, 1);
-    this.heading += steer * TURN_RATE * steerStrength * delta;
+    const maxTurn = TURN_RATE * steerStrength * delta;
+    // Shortest signed distance from the current heading to the look
+    // direction, wrapped to (-PI, PI] so turning from e.g. heading 3.0 to a
+    // look direction of -3.0 (nearly the same way round) takes the short way
+    // rather than spinning almost all the way round the other direction.
+    const angleDiff = THREE.MathUtils.euclideanModulo(lookHeading - this.heading + Math.PI, Math.PI * 2) - Math.PI;
+    this.heading += THREE.MathUtils.clamp(angleDiff, -maxTurn, maxTurn);
 
     // Same heading convention as RailPath/BranchTrain: rotation.y = 0 faces
     // -Z, so (sin heading, -cos heading) is the unit forward vector.

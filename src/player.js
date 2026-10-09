@@ -147,15 +147,16 @@ export class Player {
       const forward =
         Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) -
         Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
-      const steer =
-        Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) -
-        Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
 
       // Gated on isActive the same way walking is - no input reaches the
       // bike while the pointer is unlocked (paused, or the teleport menu).
       const throttle = this.isActive ? forward : 0;
-      const turn = this.isActive ? steer : 0;
-      this.bike.update(delta, throttle, turn, this.colliders);
+
+      // Steering comes from wherever the camera is currently looking, not a
+      // left/right key - works under both pointer lock and the drag-look
+      // fallback, since both ultimately just rotate this same quaternion.
+      this.euler.setFromQuaternion(this.controls.object.quaternion);
+      this.bike.update(delta, throttle, this.euler.y, this.colliders);
 
       const rider = this.bike.riderPosition();
       const position = this.controls.object.position;

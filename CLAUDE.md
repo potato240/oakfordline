@@ -59,8 +59,8 @@ Early scaffold. What exists today:
   named stop on both lines. Picking one instantly relocates the player to
   that platform.
 - A rideable bike parked on the grass near Oakford. Walk up and press `E` to
-  ride: `W`/`S` throttle, `A`/`D` steer, `E` again to get off. See "The bike"
-  below.
+  ride: `W`/`S` throttle, steer by looking where you want to go (no A/D), `E`
+  again to get off. See "The bike" below.
 
 - Solid collision: the bodyshell, canopy columns, station house, benches,
   lamps, crossing posts and lowered booms all block you. Doorways are only
@@ -92,7 +92,7 @@ rather than falling onto them.
 |                  | Bodyside cross-section (tumblehome) lives in `BODY_PROFILE`. |
 | `src/branchLayout.js` | Branch route: waypoints, stops, the `RailPath` curve-distance helper. |
 | `src/branchTrain.js`  | Two-car branch railcar unit: geometry and its own running state machine. |
-| `src/bike.js`    | Rideable bike: geometry and its own throttle/steer/friction model.  |
+| `src/bike.js`    | Rideable bike: geometry and its own throttle/look-to-steer/friction model.  |
 | `src/scenery.js` | Trees, hills, telegraph poles.                         |
 | `src/crossing.js`| Level crossing: road, booms, lamps, bell trigger.      |
 | `src/audio.js`   | Runtime-synthesised sound. No audio files.             |
@@ -426,22 +426,44 @@ with no drift; pressing `W` while seated stands the player up.
 A single `Bike` (`src/bike.js`), parked on the grass near Oakford. Unlike a
 train seat - which pins the player and lets something else move them - riding
 the bike is player-driven: `Player.update()` gains a third branch (alongside
-walking and sitting) that, while `this.bike` is set, reads WASD into a
-throttle and a steer value and hands them to `Bike.update()` instead of
-moving the player directly:
+walking and sitting) that, while `this.bike` is set, reads W/S into a
+throttle and hands `Bike.update()` the camera's own current look direction
+instead of a left/right key:
 
 ```js
 const throttle = this.isActive ? forward : 0; // W minus S
-const turn = this.isActive ? steer : 0;        // D minus A
-this.bike.update(delta, throttle, turn, this.colliders);
+this.euler.setFromQuaternion(this.controls.object.quaternion);
+this.bike.update(delta, throttle, this.euler.y, this.colliders);
 ```
+
+**Steering is "look to steer", not A/D.** There is no left/right input at
+all - `Bike.update()` turns `this.heading` toward whatever `lookHeading` it
+is handed every frame, at a rate capped by `TURN_RATE` and scaled by
+`Math.abs(speed)` so the bike still cannot spin on the spot the way a real
+one cannot (full turn rate only applies once actually moving, exactly as
+the old A/D version did - only what drives the turn changed, not the
+speed-gating). The angular difference between the current heading and the
+look direction is wrapped to `(-PI, PI]` first (`THREE.MathUtils.euclideanModulo`)
+so turning towards a look direction on the other side of the wraparound
+point takes the short way round rather than spinning almost a full circle
+the long way. `this.euler` (the same `Euler('YXZ')` the drag-look fallback
+already used) reads the camera's current yaw directly off
+`this.controls.object.quaternion`, so this works identically under real
+pointer lock and the drag-look fallback - both just rotate that same
+quaternion. Verified headlessly: holding throttle while looking 90° to one
+side turns the bike's heading to match over about a second (capped at
+`TURN_RATE`, never snapping instantly), a stationary bike barely turns at
+all even facing a 180° look change (the speed-scaled floor still applies),
+and turning across the heading wraparound point takes the short ~0.28 rad
+path rather than the long ~6 rad one; confirmed live in the browser too,
+driving the actual bundled `Player`/`Bike` code with a simulated look
+direction - the rendered bike's `group.rotation.y` ends up exactly equal to
+the look angle.
 
 `Bike` keeps its own `{x, z, heading, speed}`, the same shape as
 `BranchTrain`'s distance/heading state, but advanced by input instead of a
 timetable: throttle accelerates or brakes, coasting decays `speed` toward
-zero via friction, and steering is scaled by `Math.abs(speed)` so the bike
-cannot spin on the spot the way a real one cannot - full steer only bites
-once it is actually moving. Position and heading update with the same
+zero via friction. Position and heading update with the same
 `(sin heading, -cos heading)` forward-vector convention `RailPath` and
 `BranchTrain` already use, so a heading of 0 still means "facing -Z"
 everywhere in this codebase.
@@ -481,9 +503,9 @@ over the same keypress. Verified live: teleporting the player next to the
 bike shows "Press E to ride the bike"; a real dispatched `KeyE` mounts it and
 switches the prompt to "Press E to get off the bike"; holding forward
 accelerates to `MAX_SPEED` and moves the camera by exactly the bike's own
-`{dx, dz}` every frame; steering while moving curves the path; a second `KeyE`
-dismounts, leaves the bike exactly where it stopped, and stands the player
-0.9m to one side of it.
+`{dx, dz}` every frame; looking to one side while moving curves the path
+toward it; a second `KeyE` dismounts, leaves the bike exactly where it
+stopped, and stands the player 0.9m to one side of it.
 
 ## Level crossings and sound
 
